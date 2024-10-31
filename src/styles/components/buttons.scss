@@ -7,7 +7,7 @@
 .button {
   align-items: center;
   appearance: none;
-  background-color: transparent;
+  background-color: black; /* Hintergrund auf Schwarz setzen */
   border: 1px solid transparent;
   box-shadow: none;
   color: var(--colour-text-secondary);
@@ -27,13 +27,15 @@
   vertical-align: middle;
   white-space: nowrap;
   width: auto;
+  transform: rotate(90deg); /* Dreht den Button um 90 Grad */
+  transform-origin: center; /* Drehung um das Zentrum */
 
   &:hover {
     cursor: pointer;
   }
 
   &--authorise {
-    background-color: var(--color-brand-spotify);
+    background-color: black; /* Setzt den Hintergrund auch für die spezielle Klasse auf Schwarz */
     color: var(--color-text-primary);
   }
 }
