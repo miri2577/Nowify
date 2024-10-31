@@ -2,25 +2,34 @@ html, body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  width: 100vw;
-  height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
+  width: 100vw;
+  height: 100vh;
 }
 
 * {
   box-sizing: border-box;
 }
 
+/* Standard Querformat-Darstellung */
 .rotate-wrapper {
-  transform: rotate(90deg); /* Drehung um 90 Grad */
-  transform-origin: center; /* Drehung um das Zentrum */
-  width: 100vh; /* Die Höhe des Bildschirms im Hochformat */
-  height: 100vw; /* Die Breite des Bildschirms im Hochformat */
   display: flex;
   justify-content: center;
   align-items: center;
+  width: 100vw;
+  height: 100vh;
+}
+
+/* Hochformat-Darstellung mit 90 Grad Rotation */
+@media screen and (orientation: landscape) {
+  .rotate-wrapper {
+    transform: rotate(90deg);
+    transform-origin: center;
+    width: 100vh;
+    height: 100vw;
+  }
 }
 
 .now-playing {
