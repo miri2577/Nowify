@@ -23,7 +23,7 @@ html, body {
 }
 
 /* Hochformat-Darstellung mit 90 Grad Rotation */
-@media screen and (orientation: landscape) {
+@media screen and (orientation: portrait) {
   .rotate-wrapper {
     transform: rotate(90deg);
     transform-origin: center;
