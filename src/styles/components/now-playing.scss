@@ -6,62 +6,55 @@ html, body {
   display: flex;
   justify-content: center;
   align-items: center;
-  width: 100vw;
-  height: 100vh;
+  width: 100vh; /* Breite und Höhe vertauschen */
+  height: 100vw;
 }
 
 * {
-  box-sizing: border-box; // Apply box-sizing to all elements
+  box-sizing: border-box; /* Apply box-sizing to all elements */
 }
 
 .now-playing {
   color: #eaeaea;
   position: relative;
-  width: 90vmin; // Use vmin for both width and height to ensure a square that fits within the viewport
-  height: 90vmin; // Use vmin to maintain aspect ratio
+  width: 90vmin; /* Verwende vmin, um eine quadratische Form zu gewährleisten */
+  height: 90vmin;
   max-height: 100vh;
   max-width: 100vw;
-  //display: flex;
+  transform: rotate(90deg); /* Dreht das Layout um 90 Grad */
+  display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  margin: auto; // Center in the viewport
+  margin: auto; /* Zentrieren im Viewport */
 
   &__image {
-    box-shadow: 0px 0px 5vmin 3vmin rgba(0, 0, 0, .5);
-    width: 100%; // Take up all the width of its parent
-    height: 100%; // Take up all the height of its parent (since parent is square, image will be too)
-    object-fit: cover; // Cover the entire content box
-    aspect-ratio: 1 / 1; // Maintain square aspect ratio
+    box-shadow: 0px 0px 5vmin 3vmin rgba(0, 0, 0, 0.5);
+    width: 100%; /* Füllt die Breite des übergeordneten Elements aus */
+    height: 100%; /* Füllt die Höhe des übergeordneten Elements aus */
+    object-fit: cover; /* Passt das Bild vollständig an */
+    aspect-ratio: 1 / 1; /* Beibehaltung des quadratischen Seitenverhältnisses */
   }
 
   &__details {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    width: 80%; // Details take up 80% of the now-playing width
-    height: auto; // Height should be automatic, based on content
-    margin: auto; // Center the details
-    text-shadow: 0px 0px 5px rgba(0, 0, 0, .5);    
+    width: 80%; /* Details nehmen 80 % der Breite von now-playing ein */
+    height: auto; /* Höhe sollte automatisch sein, basierend auf dem Inhalt */
+    margin: auto; /* Zentrieren der Details */
+    text-shadow: 0px 0px 5px rgba(0, 0, 0, 0.5);    
   }
 
   &__track {
-    font-size: 5vmin; // Use vmin to scale font size based on viewport size
+    font-size: 5vmin; /* Schriftgröße skalieren basierend auf der Viewportgröße */
     margin: 0px;
     padding: 0px;
-    white-space: nowrap; /* Prevent text from wrapping */
-    overflow: hidden; /* Hide overflowing text */
-    text-overflow: ellipsis; /* Add ellipsis (...) for truncated text */
+    white-space: nowrap; /* Verhindert Zeilenumbruch */
+    overflow: hidden; /* Versteckt überlaufenden Text */
+    text-overflow: ellipsis; /* Fügt Ellipse für abgeschnittenen Text hinzu */
   }
 
   &__artists {
-    font-size: 3vmin; // Use vmin to scale font size based on viewport size
-    opacity: 0.7;    
-    margin: 0px;
-    padding: 0px;
-    white-space: nowrap; /* Prevent text from wrapping */
-    overflow: hidden; /* Hide overflowing text */
-    text-overflow: ellipsis; /* Add ellipsis (...) for truncated text */
-  }
-}
+    font-size: 3vmin; /* Schriftgröße skalieren basierend auf der Viewport
