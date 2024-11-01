@@ -31,8 +31,8 @@ html, body {
   
   &__image {
     box-shadow: 0px 0px 5vmin 3vmin rgba(0, 0, 0, .5);
-    width: 100%; // Take up all the width of its parent
-    height: 100%; // Take up all the height of its parent (since parent is square, image will be too)
+    width: 98%; // Take up all the width of its parent
+    height: 98%; // Take up all the height of its parent (since parent is square, image will be too)
     object-fit: cover; // Cover the entire content box
     aspect-ratio: 1 / 1; // Maintain square aspect ratio
   }
