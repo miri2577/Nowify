@@ -7,10 +7,10 @@
 .button {
   align-items: center;
   appearance: none;
-  background-color: transparent;
+  //background-color: transparent;
   border: 1px solid transparent;
   box-shadow: none;
-  color: var(--colour-text-secondary);
+  //color: var(--colour-text-secondary);
   display: inline-flex;
   font-size: ms(0);
   font-weight: var(--font-weight-heading);
@@ -33,7 +33,7 @@
   }
 
   &--authorise {
-    background-color: var(--color-brand-spotify);
-    color: var(--color-text-primary);
+    //background-color: var(--color-brand-spotify);
+    //color: var(--color-text-primary);
   }
 }
