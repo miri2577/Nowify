@@ -15,15 +15,19 @@
       <div class="now-playing__details">
         <h1 class="now-playing__track" v-text="player.trackTitle"></h1>
         <h2 class="now-playing__artists" v-text="getTrackArtists"></h2>
+        <h3 class="now-playing__album" v-text="player.trackAlbumName"></h3>
+        <h3 class="now-playing__year" v-text="player.trackYear"></h3>
       </div>
     </div>
     <div v-else class="now-playing" :class="getNowPlayingClass()">
-      <h1 class="now-playing__idle-heading"></h1>
+      <font size="55"> <h4 class="now-playing__idle-heading"> {{ currentTime }} </h4></font>
+      <h1 class="now-playing__idle-heading"> {{ currentDate }}</h1>
     </div>
   </div>
 </template>
 
 <script>
+
 import * as Vibrant from 'node-vibrant'
 
 import props from '@/utils/props.js'
@@ -43,7 +47,9 @@ export default {
       playerResponse: {},
       playerData: this.getEmptyPlayer(),
       colourPalette: '',
-      swatches: []
+      swatches: [],
+      currentDate: '',
+      currentTime: ''
     }
   },
 
@@ -58,7 +64,9 @@ export default {
   },
 
   mounted() {
-    this.setDataInterval()
+    this.setDataInterval();
+    this.updateDatetime();
+    setInterval(this.updateDatetime, 1000);
   },
 
   beforeDestroy() {
@@ -70,6 +78,18 @@ export default {
      * Make the network request to Spotify to
      * get the current played track.
      */
+
+     updateDatetime() {
+      // Get the current date and time
+      const now = new Date();
+      // Format the date and time
+      const formattedDate = now.toLocaleString('it-IT', {timeZone: 'CET', weekday: 'long', month: 'long', day: 'numeric'});
+      const formattedTime = now.toLocaleTimeString('it-IT', { hour: "2-digit", minute: "2-digit" });
+      // Update the currentDatetime property
+      this.currentDate = formattedDate;
+      this.currentTime = formattedTime
+    },
+
     async getNowPlaying() {
       let data = {}
 
@@ -161,7 +181,9 @@ export default {
         trackAlbum: {},
         trackArtists: [],
         trackId: '',
-        trackTitle: ''
+        trackTitle: '',
+        trackYear: '',
+        trackAlbumName: ''
       }
     },
 
@@ -230,6 +252,8 @@ export default {
         ),
         trackTitle: this.playerResponse.item.name,
         trackId: this.playerResponse.item.id,
+        trackYear: this.playerResponse.item.album.release_date.substring(0,4),
+        trackAlbumName: this.playerResponse.item.album.name,
         trackAlbum: {
           title: this.playerResponse.item.album.name,
           image: this.playerResponse.item.album.images[0].url
