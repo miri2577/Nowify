@@ -18,7 +18,7 @@
       </div>
     </div>
     <div v-else class="now-playing" :class="getNowPlayingClass()">
-      <h1 class="now-playing__idle-heading">No music is playing right now.</h1>
+      <h1 class="now-playing__idle-heading">Sidney Por favor escolha uma musica</h1>
     </div>
   </div>
 </template>
