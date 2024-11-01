@@ -91,7 +91,7 @@ export default {
 
       if (grantType === 'authorization_code') {
         ;(fetchData.code = this.auth.authCode),
-          (fetchData.redirect_uri = window.location.origin)
+          (fetchData.redirect_uri = window.location.origin +'/')
       }
 
       if (grantType === 'refresh_token') {
@@ -181,7 +181,7 @@ export default {
       searchParams.toString()
       searchParams.append('client_id', this.auth.clientId)
       searchParams.append('response_type', 'code')
-      searchParams.append('redirect_uri', window.location.origin)
+      searchParams.append('redirect_uri', window.location.origin + '/')
       searchParams.append(
         'state',
         [
