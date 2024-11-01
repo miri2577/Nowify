@@ -4,7 +4,7 @@
     <div
       class="now-playing__background"
       :style="{ 
-        backgroundImage: 'url(' + player.trackAlbum.image + ')', 
+        //backgroundImage: 'url(' + player.trackAlbum.image + ')', 
         filter: 'blur(10vmin) saturate(200%) contrast(100%)', 
         backgroundSize: 'cover', 
         backgroundPosition: 'center center', 
