@@ -13,12 +13,15 @@
         />
       </div>
       <div class="now-playing__details">
+        <h3 class="current track">Currently Playing:</h3>
         <h1 class="now-playing__track" v-text="player.trackTitle"></h1>
         <h2 class="now-playing__artists" v-text="getTrackArtists"></h2>
+        <h2 class="now-playing__albums" v-text="player.trackAlbum.title"></h2>
+        <h3 class="now-playing__release" >Released on <span v-text="player.trackAlbum.release_date"></span> </h3>
       </div>
     </div>
     <div v-else class="now-playing" :class="getNowPlayingClass()">
-      <h1 class="now-playing__idle-heading">Sidney Por favor escolha uma musica</h1>
+      <h1 class="now-playing__idle-heading">Waiting on a new song...</h1>
     </div>
   </div>
 </template>
@@ -232,7 +235,8 @@ export default {
         trackId: this.playerResponse.item.id,
         trackAlbum: {
           title: this.playerResponse.item.album.name,
-          image: this.playerResponse.item.album.images[0].url
+          image: this.playerResponse.item.album.images[0].url,
+          release_date: this.playerResponse.item.album.release_date
         }
       }
     },

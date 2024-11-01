@@ -6,13 +6,13 @@
 
  @font-face {
   font-display: swap;
-  font-family: 'Source Sans Pro', sans-serif;
+  font-family: 'Tahoma', serif;
   font-style: normal;
   font-weight: normal;
 }
 
 :root {
-  --spacing-m: 1rem;
+  --spacing-m: 0.5rem;
   --spacing-l: 1.5rem;
   --spacing-xl: 2rem;
 
@@ -23,7 +23,7 @@
 
   --font-size-base: 16px;
 
-  --font-body: 'Source Sans Pro', Helvetica, Arial, sans-serif;
+  --font-body: 'Tahoma', Helvetica, Arial ;
   --font-weight-body: 400;
   --font-weight-heading: 900;
 

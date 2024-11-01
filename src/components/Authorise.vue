@@ -17,6 +17,9 @@
     <p class="authorise__credit">
       <a href="https://github.com/jonashcroft/Nowify">View on GitHub</a>
     </p>
+    <p>
+      <a>Modified by Hikari Bresnan and Amy Winterbottom for ITD102, 2024. </a>
+    </p>
   </div>
 </template>
 
