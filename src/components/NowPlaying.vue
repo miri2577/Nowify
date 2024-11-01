@@ -1,24 +1,10 @@
 <template>
-  <div id="app" style="overflow: hidden; width: 100vw; height: 100vh; position: relative;">
-    <!-- Background Div for Album Art -->
+  <div id="app">
     <div
-      class="now-playing__background"
-      :style="{ 
-        backgroundImage: 'url(' + player.trackAlbum.image + ')', 
-        filter: 'blur(10vmin) saturate(200%) contrast(100%)', 
-        backgroundSize: 'cover', 
-        backgroundPosition: 'center center', 
-        backgroundRepeat: 'no-repeat',
-        position: 'absolute', 
-        width: '100%', 
-        height: '100%',
-        transform: 'scale(1.4)',
-        zIndex: -1
-      }"
+      v-if="player.playing"
+      class="now-playing"
+      :class="getNowPlayingClass()"
     >
-    </div>
-
-    <div v-if="player.playing" class="now-playing" :class="getNowPlayingClass()">
       <div class="now-playing__cover">
         <img
           :src="player.trackAlbum.image"
@@ -57,12 +43,9 @@ export default {
       playerResponse: {},
       playerData: this.getEmptyPlayer(),
       colourPalette: '',
-      swatches: [],
-      squareSize: 0
+      swatches: []
     }
   },
-
- 
 
   computed: {
     /**
