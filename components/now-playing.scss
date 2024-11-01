@@ -1,0 +1,78 @@
+/**
+ * Component: Now Playing.
+ * -----------------------------------------------------------------------------
+ * Styles for the 'Now Playing' screen.
+ *
+ */
+.now-playing {
+  background-color: rgba(0, 0, 0, 100);
+  color: var(--color-text-primary);
+  display: flex;
+  flex-flow: column nowrap;
+  height: 100%;
+  padding: var(--spacing-l);
+  width: 100%;
+
+  &__cover {
+    padding: 0;
+    text-align: center;
+    width: 100%;
+  }
+  
+  &__details {
+    padding: var(--spacing-m);
+    text-align: center;
+    width: 100%;
+    padding-top: 20vw;
+  }
+
+  &__cover {
+    max-width: 800px;
+  }
+
+  &__image {
+    height: auto;
+    max-width: 150vw;
+    width: 100%;
+    padding: 10;
+  }
+
+  &__details {
+    text-align: center;
+    justify-content: center;
+  }
+
+  &__track {
+    font-weight: var(--font-weight-heading);
+  }
+
+  &__artists {
+    opacity: 0.8;
+  }
+
+  &--active {
+    align-items: center;
+    justify-content: start;
+  }
+
+  &--idle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  @media only screen and (min-width: 767px) {
+    flex-flow: row nowrap;
+    padding: 10%;
+
+    &__cover,
+    &__details {
+      width: 50%;
+      max-width: 495px;
+    }
+
+    &__details {
+      text-align: left;
+    }
+  }
+}
