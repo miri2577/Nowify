@@ -35,6 +35,7 @@ html, body {
     height: 98%; // Take up all the height of its parent (since parent is square, image will be too)
     object-fit: cover; // Cover the entire content box
     aspect-ratio: 1 / 1; // Maintain square aspect ratio
+    background-color: #080000; 
   }
 
   &__details {
