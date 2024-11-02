@@ -21,7 +21,7 @@
       </div>
     </div>
     <div v-else class="now-playing" :class="getNowPlayingClass()">
-      <h1 class="now-playing__idle-heading"></h1>
+      <h1 class="now-playing__idle-heading">Waiting on a new song...</h1>
     </div>
   </div>
 </template>
@@ -235,7 +235,8 @@ export default {
         trackId: this.playerResponse.item.id,
         trackAlbum: {
           title: this.playerResponse.item.album.name,
-          image: this.playerResponse.item.album.images[0].url
+          image: this.playerResponse.item.album.images[0].url,
+          release_date: this.playerResponse.item.album.release_date
         }
       }
     },
