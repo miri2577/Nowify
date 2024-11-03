@@ -24,6 +24,11 @@
     text-align: center;
     width: 100%;
   }
+&__image {
+    width: 100%; // Take up all the width of its parent
+    height: 100%; // Take up all the height of its parent (since parent is square, image will be too)
+    object-fit: cover; // Cover the entire content box
+    aspect-ratio: 1 / 1; // Maintain square aspect ratio
   
   &__details {
     padding: var(--spacing-m);
