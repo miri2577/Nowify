@@ -12,7 +12,8 @@
   height: 100%;
   padding: var(--spacing-l);
   width: 100%;
-
+  position: relative;  
+  
   &__cover {
     padding: 0;
     text-align: center;
