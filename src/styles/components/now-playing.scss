@@ -25,11 +25,10 @@
   }
 
   &__image {
-    box-shadow: 1px 1px 16px -2px rgba(0, 0, 0, .3);
     height: auto;
     max-width: 60vw;
     width: 100%;
-  }
+     object-fit: fill;  }
 
   &__details {
     text-align: center;
