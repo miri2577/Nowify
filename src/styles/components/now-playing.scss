@@ -11,12 +11,12 @@
   flex-flow: column nowrap;
   height: 100%;
   padding: var(--spacing-l);
-  width: 101%;
+  width: 99%;
 
   &__cover {
     padding: 0;
     text-align: center;
-    width: 101%;
+    width: 99%;
   }
   
   &__details {
@@ -33,7 +33,7 @@
   &__image {
     height: auto;
     max-width: 150vw;
-    width: 100%;
+    width: 99%;
     padding: 10;
   }
 
