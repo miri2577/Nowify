@@ -5,41 +5,33 @@
  *
  */
 .now-playing {
-  background-color: rgba(0, 0, 0, 100);
+  background-color: rgba(0, 0, 0, 1);
   color: var(--color-text-primary);
   display: flex;
   flex-flow: column nowrap;
+  align-items: center;
   height: 100%;
-  padding: var(--spacing-l);
   width: 100%;
+  padding: 0;
 
   &__cover {
+    width: 100vw;
     padding: 0;
-    text-align: center;
-    width: 100%;
-  }
-  
-  &__details {
-    padding: var(--spacing-m);
-    text-align: center;
-    width: 100%;
-    padding-top: 20vw;
-  }
-
-  &__cover {
-    max-width: 800px;
+    line-height: 0;
   }
 
   &__image {
-    height: auto;
-    max-width: 150vw;
-    width: 100%;
-    object-fit: fill;
+    width: 100vw;
+    height: 100vw;
+    object-fit: cover;
+    display: block;
   }
 
   &__details {
+    padding: var(--spacing-l);
+    padding-top: var(--spacing-l);
     text-align: center;
-    justify-content: center;
+    width: 100%;
   }
 
   &__track {
@@ -52,27 +44,12 @@
 
   &--active {
     align-items: center;
-    justify-content: start;
+    justify-content: flex-start;
   }
 
   &--idle {
     display: flex;
     align-items: center;
     justify-content: center;
-  }
-
-  @media only screen and (min-width: 767px) {
-    flex-flow: row nowrap;
-    padding: 10%;
-
-    &__cover,
-    &__details {
-      width: 50%;
-      max-width: 495px;
-    }
-
-    &__details {
-      text-align: left;
-    }
   }
 }
