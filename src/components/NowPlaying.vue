@@ -70,6 +70,49 @@ export default {
 
   methods: {
     /**
+     * Query the Netlify relay for an alternative now-playing source
+     * (e.g. Klassik Radio pushed from the KlassikPlus app).
+     */
+    async getRelayTrack() {
+      try {
+        const r = await fetch('/api/track')
+        if (!r.ok) return null
+        const d = await r.json()
+        if (d.source !== 'krp' || !d.title) return null
+        return d
+      } catch (e) {
+        return null
+      }
+    },
+
+    /**
+     * When Spotify reports idle, check the relay. If it has a fresh KRP
+     * track, show that; otherwise show the idle screen.
+     */
+    async setIdleOrRelay() {
+      const relay = await this.getRelayTrack()
+      if (!relay) {
+        this.playerData = this.getEmptyPlayer()
+        return
+      }
+      const relayId = `relay:${relay.title}:${relay.artist || ''}`
+      if (this.playerData.trackId === relayId && this.playerData.playing) {
+        return
+      }
+      this.playerData = {
+        playing: true,
+        trackArtists: relay.artist ? [relay.artist] : [],
+        trackTitle: relay.title,
+        trackId: relayId,
+        trackAlbum: {
+          title: relay.album || relay.station || '',
+          image: relay.cover || '',
+          release_date: ''
+        }
+      }
+    },
+
+    /**
      * Make the network request to Spotify to
      * get the current played track.
      */
@@ -98,13 +141,7 @@ export default {
          * The connection was successful but there's no content to return.
          */
         if (response.status === 204) {
-          data = this.getEmptyPlayer()
-          this.playerData = data
-
-          this.$nextTick(() => {
-            this.$emit('spotifyTrackUpdated', data)
-          })
-
+          await this.setIdleOrRelay()
           return
         }
 
@@ -210,7 +247,7 @@ export default {
        * Player is active, but user has paused.
        */
       if (this.playerResponse.is_playing === false) {
-        this.playerData = this.getEmptyPlayer()
+        this.setIdleOrRelay()
 
         return
       }
