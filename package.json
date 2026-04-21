@@ -14,6 +14,7 @@
     "lint": "vue-cli-service lint"
   },
   "dependencies": {
+    "@netlify/blobs": "^8.1.0",
     "axios": "^0.19.2",
     "core-js": "^3.6.5",
     "dotenv": "^8.2.0",
