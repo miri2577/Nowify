@@ -15,9 +15,9 @@ import time
 import urllib.error
 import urllib.request
 
-IMAGE_DIR = '/var/lib/artframe/images'
-KEEP_MAX = 40
-WIDTH = 1920  # IIIF width; height scales to keep aspect
+IMAGE_DIR = os.environ.get('ARTFRAME_DIR', '/var/lib/artframe/images')
+KEEP_MAX = int(os.environ.get('ARTFRAME_KEEP', '40'))
+WIDTH = int(os.environ.get('ARTFRAME_WIDTH', '1920'))
 
 API_URL = 'https://api.artic.edu/api/v1/artworks'
 IIIF_BASE = 'https://www.artic.edu/iiif/2'
