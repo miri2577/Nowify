@@ -1,0 +1,13 @@
+[Unit]
+Description=Nowify kiosk localhost helper (shutdown endpoint)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/kiosk-control.py
+Restart=always
+RestartSec=2
+User=root
+
+[Install]
+WantedBy=multi-user.target

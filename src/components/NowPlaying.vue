@@ -42,8 +42,10 @@ import * as Vibrant from 'node-vibrant'
 
 import props from '@/utils/props.js'
 
-const IDLE_ARTWORK_DELAY_MS = 3 * 60 * 1000
+const IDLE_ARTWORK_DELAY_MS = 1 * 60 * 1000
 const ARTWORK_ROTATE_MS = 60 * 1000
+const ARTWORK_IDLE_SHUTDOWN_MS = 60 * 60 * 1000
+const SHUTDOWN_ENDPOINT = 'http://127.0.0.1:8787/shutdown'
 const ARTWORK_FETCH_URL =
   'https://api.artic.edu/api/v1/artworks'
 const ARTWORK_IIIF_BASE = 'https://www.artic.edu/iiif/2'
@@ -71,7 +73,8 @@ export default {
       artworks: [],
       artworkIndex: 0,
       currentArt: null,
-      artworkTimer: null
+      artworkTimer: null,
+      shutdownTimer: null
     }
   },
 
@@ -91,6 +94,7 @@ export default {
     clearInterval(this.pollPlaying)
     clearInterval(this.idleTimer)
     clearInterval(this.artworkTimer)
+    clearTimeout(this.shutdownTimer)
   },
 
   methods: {
@@ -329,6 +333,11 @@ export default {
       this.nextArtwork()
       clearInterval(this.artworkTimer)
       this.artworkTimer = setInterval(() => this.nextArtwork(), ARTWORK_ROTATE_MS)
+      clearTimeout(this.shutdownTimer)
+      this.shutdownTimer = setTimeout(
+        () => this.requestShutdown(),
+        ARTWORK_IDLE_SHUTDOWN_MS
+      )
     },
 
     exitArtwork() {
@@ -336,6 +345,20 @@ export default {
       clearInterval(this.artworkTimer)
       this.artworkTimer = null
       this.currentArt = null
+      clearTimeout(this.shutdownTimer)
+      this.shutdownTimer = null
+    },
+
+    requestShutdown() {
+      // Fire-and-forget to Pi-local helper daemon. If the daemon is not
+      // running (e.g. during local dev), the fetch fails silently.
+      try {
+        fetch(SHUTDOWN_ENDPOINT, { method: 'POST', mode: 'no-cors' }).catch(
+          () => {}
+        )
+      } catch (e) {
+        // ignore
+      }
     },
 
     async fetchArtworks() {
@@ -416,42 +439,47 @@ export default {
 .artwork {
   position: fixed;
   inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   background: #000;
   padding: 0;
   margin: 0;
+  overflow: hidden;
 
   &__image {
-    max-width: 100vw;
-    max-height: calc(100vh - 140px);
-    width: auto;
-    height: auto;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     object-fit: contain;
     display: block;
   }
 
   &__caption {
-    width: 100%;
-    padding: 16px 24px 24px;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 18px 24px 22px;
     text-align: center;
     color: #fff;
-    background: transparent;
+    background: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0) 0%,
+      rgba(0, 0, 0, 0.72) 55%,
+      rgba(0, 0, 0, 0.88) 100%
+    );
   }
 
   &__title {
-    margin: 0 0 6px;
-    font-size: 1.6em;
+    margin: 0 0 8px;
+    font-size: 2.1em;
     font-weight: 600;
     line-height: 1.2;
   }
 
   &__artist {
     margin: 0;
-    opacity: 0.75;
-    font-size: 1.1em;
+    opacity: 0.85;
+    font-size: 1.4em;
   }
 }
 </style>
