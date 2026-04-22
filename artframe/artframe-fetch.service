@@ -1,0 +1,10 @@
+[Unit]
+Description=Artframe: fetch new artworks from AIC
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/artframe/fetch.py
+User=root
+Nice=10
