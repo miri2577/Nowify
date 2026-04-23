@@ -16,6 +16,7 @@ import random
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -31,7 +32,7 @@ DEPT_IDS = os.environ.get('ARTFRAME_DEPTS', '11,14,21,19,9')
 # Restrict to curated highlights (~2000 total)? Much higher PD hit rate.
 HIGHLIGHTS_ONLY = os.environ.get('ARTFRAME_HIGHLIGHTS', '1') not in ('0', '')
 
-WORKERS = int(os.environ.get('ARTFRAME_WORKERS', '16'))
+WORKERS = int(os.environ.get('ARTFRAME_WORKERS', '32'))
 
 UA = 'artframe/1.0 (+https://github.com/miri2577/Nowify)'
 
@@ -42,29 +43,45 @@ MAX_BYTES = 5 * 1024 * 1024   # skip images bigger than 5 MB
 
 
 def http_get(url, timeout=30):
-    req = urllib.request.Request(url, headers={'User-Agent': UA})
+    # Met occasionally has literal spaces in image paths; safe-encode.
+    safe_url = urllib.parse.quote(url, safe=':/?&=%#')
+    req = urllib.request.Request(safe_url, headers={'User-Agent': UA})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
 
 
 def fetch_search_ids():
-    """Aggregate candidate object IDs via /search across departments."""
+    """Aggregate candidate object IDs via /search across departments.
+
+    Met's /search appears to cap results per query. Fan out with every
+    letter of the alphabet as a separate query to maximise coverage;
+    we dedupe on our end.
+    """
     all_ids = []
     seen = set()
-    queries = ['a', 'of', 'the']
+    queries = list('abcdefghijklmnopqrstuvwxyz')
     highlight = '&isHighlight=true' if HIGHLIGHTS_ONLY else ''
+
+    def one(url):
+        try:
+            return json.loads(http_get(url, timeout=60)).get('objectIDs') or []
+        except Exception:
+            return []
+
+    # Use a pool for the search fan-out too — 130 calls otherwise take
+    # ages serially.
+    urls = []
     for dept in DEPT_IDS.split(','):
         dept = dept.strip()
         if not dept:
             continue
         for q in queries:
-            url = (f'{API_BASE}/search?q={q}'
-                   f'&hasImages=true{highlight}&departmentId={dept}')
-            try:
-                raw = http_get(url, timeout=60)
-                ids = json.loads(raw).get('objectIDs') or []
-            except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
-                continue
+            urls.append(
+                f'{API_BASE}/search?q={q}'
+                f'&hasImages=true{highlight}&departmentId={dept}'
+            )
+    with ThreadPoolExecutor(max_workers=min(WORKERS, 16)) as pool:
+        for ids in pool.map(one, urls):
             for oid in ids:
                 if oid not in seen:
                     seen.add(oid)
@@ -111,11 +128,13 @@ def existing_ids():
 def fetch_candidate(oid):
     """Fetch object metadata and image in one worker call.
 
-    Returns (oid, title, artist, bytes) or None to reject.
+    Returns (oid, title, artist, bytes) or None to reject. Catches
+    any network / parsing / encoding error so one bad entry doesn't
+    kill the whole run.
     """
     try:
         obj = json.loads(http_get(f'{API_BASE}/objects/{oid}', timeout=30))
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+    except Exception:
         return None
     if not obj.get('isPublicDomain'):
         return None
@@ -124,7 +143,7 @@ def fetch_candidate(oid):
         return None
     try:
         data = http_get(img_url, timeout=60)
-    except (urllib.error.URLError, TimeoutError):
+    except Exception:
         return None
     if len(data) < 10_000 or len(data) > MAX_BYTES:
         return None
@@ -168,7 +187,10 @@ def main():
             for fut in as_completed(futures):
                 if added >= need:
                     break
-                result = fut.result()
+                try:
+                    result = fut.result()
+                except Exception:
+                    continue
                 if not result:
                     continue
                 oid, title, artist, data = result
