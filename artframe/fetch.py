@@ -23,13 +23,16 @@ KEEP_MAX = int(os.environ.get('ARTFRAME_KEEP', '40'))
 # Comma-separated Commons category names (without the "Category:" prefix).
 # Default pool is the curated Featured + Quality painting set — several
 # thousand top-tier images. Add more for broader variety.
+# Curated Commons pools (paintings, sculptures, photos, architecture,
+# nature — all genres, all freely licensed). Override via env.
 CATEGORIES = os.environ.get(
     'ARTFRAME_CATEGORIES',
-    'Featured pictures of paintings,'
-    'Quality images of paintings,'
-    'Paintings in the Louvre,'
-    'Paintings in the Rijksmuseum'
+    'Featured pictures on Wikimedia Commons,'
+    'Quality images'
 ).split(',')
+
+MAX_DEPTH = int(os.environ.get('ARTFRAME_DEPTH', '2'))
+MAX_TITLES = int(os.environ.get('ARTFRAME_MAX_TITLES', '8000'))
 
 COMMONS_API = 'https://commons.wikimedia.org/w/api.php'
 UA = ('artframe/1.0 '
@@ -50,16 +53,16 @@ def http_get(url, timeout=30):
         return r.read()
 
 
-def fetch_category_titles(category):
-    """All File: titles in a Commons category (paginates)."""
-    titles = []
+def _list_category(category):
+    """Return (files, subcats) for a single Commons category, paginated."""
+    files, subcats = [], []
     cont = None
     while True:
         params = {
             'action': 'query',
             'list': 'categorymembers',
             'cmtitle': f'Category:{category.strip()}',
-            'cmtype': 'file',
+            'cmtype': 'file|subcat',
             'cmlimit': '500',
             'format': 'json',
         }
@@ -70,13 +73,36 @@ def fetch_category_titles(category):
             data = json.loads(http_get(url, timeout=60))
         except Exception:
             break
-        members = data.get('query', {}).get('categorymembers', [])
-        for m in members:
-            titles.append(m['title'])
+        for m in data.get('query', {}).get('categorymembers', []):
+            ns = m.get('ns')
+            title = m.get('title', '')
+            if ns == 6:           # File
+                files.append(title)
+            elif ns == 14:        # Subcategory
+                subcats.append(title.split(':', 1)[1])
         cont = (data.get('continue') or {}).get('cmcontinue')
         if not cont:
             break
-    return titles
+    return files, subcats
+
+
+def fetch_category_tree(category):
+    """BFS traversal: files from category and subcats up to MAX_DEPTH."""
+    files = []
+    seen_cats = set()
+    queue = [(category, 0)]
+    while queue and len(files) < MAX_TITLES:
+        cat, depth = queue.pop(0)
+        if cat in seen_cats:
+            continue
+        seen_cats.add(cat)
+        local_files, subcats = _list_category(cat)
+        files.extend(local_files)
+        if depth < MAX_DEPTH:
+            for sc in subcats:
+                if sc not in seen_cats:
+                    queue.append((sc, depth + 1))
+    return files[:MAX_TITLES]
 
 
 def fetch_image_infos(titles_batch):
@@ -155,17 +181,17 @@ def main():
         print(f'already have {len(have)} images, nothing to do', flush=True)
         return 0
 
-    print(f'fetching Commons category listings ({len(CATEGORIES)} cats)...',
-          flush=True)
+    print(f'fetching Commons category trees ({len(CATEGORIES)} roots, '
+          f'depth {MAX_DEPTH})...', flush=True)
     all_titles = []
     seen = set()
     with ThreadPoolExecutor(max_workers=min(WORKERS, 8)) as pool:
-        for titles in pool.map(fetch_category_titles, CATEGORIES):
+        for titles in pool.map(fetch_category_tree, CATEGORIES):
             for t in titles:
                 if t not in seen:
                     seen.add(t)
                     all_titles.append(t)
-    print(f'{len(all_titles)} titles across categories', flush=True)
+    print(f'{len(all_titles)} unique titles collected', flush=True)
     if not all_titles:
         print('no titles — check ARTFRAME_CATEGORIES / network', flush=True)
         return 1
