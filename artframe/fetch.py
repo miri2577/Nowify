@@ -40,9 +40,33 @@ def http_get(url, timeout=30):
 
 
 def fetch_object_ids():
-    url = f'{API_BASE}/objects?departmentIds={DEPT_IDS}'
-    raw = http_get(url, timeout=60)
-    return json.loads(raw).get('objectIDs') or []
+    """Aggregate IDs via /search?hasImages=true per department.
+
+    /objects would return every record — mostly image-less, giving us a
+    <1% hit rate. /search with hasImages=true narrows massively.
+    """
+    all_ids = []
+    seen = set()
+    queries = ['a', 'of', 'the']  # common-word queries, maximize coverage
+    for dept in DEPT_IDS.split(','):
+        dept = dept.strip()
+        if not dept:
+            continue
+        for q in queries:
+            url = (f'{API_BASE}/search?q={q}'
+                   f'&hasImages=true&departmentId={dept}')
+            try:
+                raw = http_get(url, timeout=60)
+                ids = json.loads(raw).get('objectIDs') or []
+            except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+                continue
+            for oid in ids:
+                if oid not in seen:
+                    seen.add(oid)
+                    all_ids.append(oid)
+            if len(all_ids) > 5000:
+                break
+    return all_ids
 
 
 def fetch_object(oid):
