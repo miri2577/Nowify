@@ -1,30 +1,36 @@
 #!/usr/bin/env python3
-"""Pull a batch of artwork JPGs from the Art Institute of Chicago.
+"""Pull a batch of artwork JPGs from the Metropolitan Museum of Art.
 
-Keeps IMAGE_DIR populated with up to KEEP_MAX recent images. Each run
-fetches a random page from the public AIC API and tops up any missing
-slots. Uses stdlib only (urllib) so the Pi doesn't need pip.
+Uses the public Met Collection API (https://metmuseum.github.io/),
+no auth, no key. Filters to works that are public-domain and have a
+primary image; orientation filter is done locally by parsing the JPEG
+SOF marker after download. Stdlib only.
 """
 import json
 import os
 import random
-import shutil
 import sys
-import tempfile
 import time
 import urllib.error
 import urllib.request
 
 IMAGE_DIR = os.environ.get('ARTFRAME_DIR', '/var/lib/artframe/images')
 KEEP_MAX = int(os.environ.get('ARTFRAME_KEEP', '40'))
-WIDTH = int(os.environ.get('ARTFRAME_WIDTH', '1920'))
 
-API_URL = 'https://api.artic.edu/api/v1/artworks'
-IIIF_BASE = 'https://www.artic.edu/iiif/2'
+API_BASE = 'https://collectionapi.metmuseum.org/public/collection/v1'
+
+# Departments: 11=European Paintings, 14=American Paintings & Sculpture,
+# 21=Modern & Contemporary Art, 19=Photographs, 9=Drawings & Prints
+DEPT_IDS = os.environ.get('ARTFRAME_DEPTS', '11,14,21,19,9')
+
 UA = 'artframe/1.0 (+https://github.com/miri2577/Nowify)'
 
 # Orientation filter: 'landscape', 'portrait', or 'any'.
 ORIENTATION = os.environ.get('ARTFRAME_ORIENT', 'landscape').lower()
+
+# Cap individual image download size (bytes) — some full-size images are
+# 20+ MB which is wasteful on a Pi. Small versions are usually < 2 MB.
+MAX_BYTES = 5 * 1024 * 1024
 
 
 def http_get(url, timeout=30):
@@ -33,26 +39,40 @@ def http_get(url, timeout=30):
         return r.read()
 
 
-def fetch_page(page):
-    # is_public_domain filter is critical — AIC returns 403 on IIIF
-    # requests for non-public-domain works.
-    fields = 'id,title,artist_display,image_id,thumbnail,is_public_domain'
-    url = f'{API_URL}?page={page}&limit=50&fields={fields}'
-    raw = http_get(url)
-    data = json.loads(raw).get('data', [])
-    return [
-        a for a in data
-        if a.get('image_id')
-        and a.get('thumbnail')
-        and a.get('is_public_domain')
-    ]
+def fetch_object_ids():
+    url = f'{API_BASE}/objects?departmentIds={DEPT_IDS}'
+    raw = http_get(url, timeout=60)
+    return json.loads(raw).get('objectIDs') or []
 
 
-def orientation_ok(thumb):
-    w = thumb.get('width') or 0
-    h = thumb.get('height') or 0
-    if not w or not h:
-        return False
+def fetch_object(oid):
+    url = f'{API_BASE}/objects/{oid}'
+    raw = http_get(url, timeout=30)
+    return json.loads(raw)
+
+
+def jpeg_dims(data):
+    """Return (width, height) by parsing the JPEG SOF marker, or None."""
+    if len(data) < 10 or data[:2] != b'\xff\xd8':
+        return None
+    i, n = 2, len(data)
+    while i < n - 9:
+        if data[i] != 0xff:
+            i += 1
+            continue
+        m = data[i + 1]
+        # Start Of Frame (non-DHT/DAC/JPG) → next 7 bytes contain H/W.
+        if 0xc0 <= m <= 0xcf and m not in (0xc4, 0xc8, 0xcc):
+            h = (data[i + 5] << 8) | data[i + 6]
+            w = (data[i + 7] << 8) | data[i + 8]
+            return (w, h)
+        # Skip segment (length includes the length bytes themselves).
+        seg = (data[i + 2] << 8) | data[i + 3]
+        i += 2 + seg
+    return None
+
+
+def orientation_ok(w, h):
     if ORIENTATION == 'landscape':
         return w >= h
     if ORIENTATION == 'portrait':
@@ -70,48 +90,6 @@ def existing_ids():
     }
 
 
-def prune(keep):
-    if not os.path.isdir(IMAGE_DIR):
-        return
-    files = [
-        os.path.join(IMAGE_DIR, f)
-        for f in os.listdir(IMAGE_DIR)
-        if f.endswith('.jpg')
-    ]
-    files.sort(key=os.path.getmtime)
-    while len(files) > keep:
-        victim = files.pop(0)
-        try:
-            os.remove(victim)
-            print(f'pruned {os.path.basename(victim)}', flush=True)
-        except OSError:
-            pass
-
-
-def download_one(art):
-    image_id = art['image_id']
-    url = f'{IIIF_BASE}/{image_id}/full/{WIDTH},/0/default.jpg'
-    dest = os.path.join(IMAGE_DIR, f'{image_id}.jpg')
-    if os.path.exists(dest):
-        return False
-    try:
-        data = http_get(url, timeout=60)
-    except (urllib.error.URLError, TimeoutError) as e:
-        print(f'skip {image_id}: {e}', flush=True)
-        return False
-    if len(data) < 10_000:  # guard: AIC 404 is tiny HTML/JSON
-        return False
-    fd, tmp = tempfile.mkstemp(
-        prefix='.', suffix='.jpg', dir=IMAGE_DIR
-    )
-    with os.fdopen(fd, 'wb') as f:
-        f.write(data)
-    os.replace(tmp, dest)
-    title = (art.get('title') or '').strip()[:60]
-    print(f'saved {image_id} — {title}', flush=True)
-    return True
-
-
 def main():
     os.makedirs(IMAGE_DIR, exist_ok=True)
     have = existing_ids()
@@ -120,31 +98,56 @@ def main():
         print(f'already have {len(have)} images, nothing to do', flush=True)
         return 0
 
-    added = 0
-    tries = 0
-    while added < need and tries < 20:
-        tries += 1
-        page = random.randint(1, 200)
-        try:
-            items = fetch_page(page)
-        except (urllib.error.URLError, TimeoutError) as e:
-            print(f'page {page} failed: {e}', flush=True)
-            time.sleep(2)
-            continue
-        items = [a for a in items if orientation_ok(a.get('thumbnail', {}))]
-        random.shuffle(items)
-        for art in items:
-            if added >= need:
-                break
-            if art['image_id'] in have:
-                continue
-            if download_one(art):
-                have.add(art['image_id'])
-                added += 1
+    print(f'fetching Met object list (departments {DEPT_IDS})...', flush=True)
+    try:
+        all_ids = fetch_object_ids()
+    except (urllib.error.URLError, TimeoutError) as e:
+        print(f'ERROR: cannot reach Met API: {e}', flush=True)
+        return 1
+    random.shuffle(all_ids)
+    print(f'{len(all_ids)} candidate objects', flush=True)
 
-    prune(KEEP_MAX)
+    added = 0
+    scanned = 0
+    for oid in all_ids:
+        if added >= need:
+            break
+        scanned += 1
+        if scanned % 50 == 0:
+            print(f'  … scanned {scanned}, kept {added}', flush=True)
+        if str(oid) in have:
+            continue
+        try:
+            obj = fetch_object(oid)
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+            continue
+        if not obj.get('isPublicDomain'):
+            continue
+        img_url = obj.get('primaryImageSmall') or obj.get('primaryImage')
+        if not img_url:
+            continue
+        try:
+            data = http_get(img_url, timeout=60)
+        except (urllib.error.URLError, TimeoutError):
+            continue
+        if len(data) < 10_000 or len(data) > MAX_BYTES:
+            continue
+        dims = jpeg_dims(data)
+        if dims and not orientation_ok(*dims):
+            continue
+
+        dest = os.path.join(IMAGE_DIR, f'{oid}.jpg')
+        with open(dest, 'wb') as f:
+            f.write(data)
+        title = (obj.get('title') or '').strip()[:50]
+        artist = (obj.get('artistDisplayName') or '').strip()[:30]
+        print(f'[{added + 1}/{need}] {oid} — {artist} / {title}',
+              flush=True)
+        added += 1
+        time.sleep(0.05)   # polite pacing
+
     print(f'done: added {added}, on disk {len(existing_ids())}', flush=True)
-    return 0
+    return 0 if added else 2
 
 
 if __name__ == '__main__':
