@@ -34,11 +34,18 @@ def http_get(url, timeout=30):
 
 
 def fetch_page(page):
-    fields = 'id,title,artist_display,image_id,thumbnail'
+    # is_public_domain filter is critical — AIC returns 403 on IIIF
+    # requests for non-public-domain works.
+    fields = 'id,title,artist_display,image_id,thumbnail,is_public_domain'
     url = f'{API_URL}?page={page}&limit=50&fields={fields}'
     raw = http_get(url)
     data = json.loads(raw).get('data', [])
-    return [a for a in data if a.get('image_id') and a.get('thumbnail')]
+    return [
+        a for a in data
+        if a.get('image_id')
+        and a.get('thumbnail')
+        and a.get('is_public_domain')
+    ]
 
 
 def orientation_ok(thumb):
@@ -115,7 +122,7 @@ def main():
 
     added = 0
     tries = 0
-    while added < need and tries < 6:
+    while added < need and tries < 20:
         tries += 1
         page = random.randint(1, 200)
         try:
