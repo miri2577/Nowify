@@ -2,9 +2,13 @@
 """Pull a batch of artwork JPGs from the Metropolitan Museum of Art.
 
 Uses the public Met Collection API (https://metmuseum.github.io/),
-no auth, no key. Filters to works that are public-domain and have a
-primary image; orientation filter is done locally by parsing the JPEG
-SOF marker after download. Stdlib only.
+no auth, no key. Two tricks for speed:
+  1) /search filters to hasImages=true AND isHighlight=true — ~2000
+     curated works across all departments, most of them public-domain.
+  2) Object details + image downloads run in a thread pool so the
+     wall clock scales with latency of one request × N, not × total.
+
+Stdlib only.
 """
 import json
 import os
@@ -13,6 +17,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 IMAGE_DIR = os.environ.get('ARTFRAME_DIR', '/var/lib/artframe/images')
 KEEP_MAX = int(os.environ.get('ARTFRAME_KEEP', '40'))
@@ -23,14 +28,17 @@ API_BASE = 'https://collectionapi.metmuseum.org/public/collection/v1'
 # 21=Modern & Contemporary Art, 19=Photographs, 9=Drawings & Prints
 DEPT_IDS = os.environ.get('ARTFRAME_DEPTS', '11,14,21,19,9')
 
+# Restrict to curated highlights (~2000 total)? Much higher PD hit rate.
+HIGHLIGHTS_ONLY = os.environ.get('ARTFRAME_HIGHLIGHTS', '1') not in ('0', '')
+
+WORKERS = int(os.environ.get('ARTFRAME_WORKERS', '16'))
+
 UA = 'artframe/1.0 (+https://github.com/miri2577/Nowify)'
 
 # Orientation filter: 'landscape', 'portrait', or 'any'.
 ORIENTATION = os.environ.get('ARTFRAME_ORIENT', 'landscape').lower()
 
-# Cap individual image download size (bytes) — some full-size images are
-# 20+ MB which is wasteful on a Pi. Small versions are usually < 2 MB.
-MAX_BYTES = 5 * 1024 * 1024
+MAX_BYTES = 5 * 1024 * 1024   # skip images bigger than 5 MB
 
 
 def http_get(url, timeout=30):
@@ -39,22 +47,19 @@ def http_get(url, timeout=30):
         return r.read()
 
 
-def fetch_object_ids():
-    """Aggregate IDs via /search?hasImages=true per department.
-
-    /objects would return every record — mostly image-less, giving us a
-    <1% hit rate. /search with hasImages=true narrows massively.
-    """
+def fetch_search_ids():
+    """Aggregate candidate object IDs via /search across departments."""
     all_ids = []
     seen = set()
-    queries = ['a', 'of', 'the']  # common-word queries, maximize coverage
+    queries = ['a', 'of', 'the']
+    highlight = '&isHighlight=true' if HIGHLIGHTS_ONLY else ''
     for dept in DEPT_IDS.split(','):
         dept = dept.strip()
         if not dept:
             continue
         for q in queries:
             url = (f'{API_BASE}/search?q={q}'
-                   f'&hasImages=true&departmentId={dept}')
+                   f'&hasImages=true{highlight}&departmentId={dept}')
             try:
                 raw = http_get(url, timeout=60)
                 ids = json.loads(raw).get('objectIDs') or []
@@ -64,19 +69,10 @@ def fetch_object_ids():
                 if oid not in seen:
                     seen.add(oid)
                     all_ids.append(oid)
-            if len(all_ids) > 5000:
-                break
     return all_ids
 
 
-def fetch_object(oid):
-    url = f'{API_BASE}/objects/{oid}'
-    raw = http_get(url, timeout=30)
-    return json.loads(raw)
-
-
 def jpeg_dims(data):
-    """Return (width, height) by parsing the JPEG SOF marker, or None."""
     if len(data) < 10 or data[:2] != b'\xff\xd8':
         return None
     i, n = 2, len(data)
@@ -85,12 +81,10 @@ def jpeg_dims(data):
             i += 1
             continue
         m = data[i + 1]
-        # Start Of Frame (non-DHT/DAC/JPG) → next 7 bytes contain H/W.
         if 0xc0 <= m <= 0xcf and m not in (0xc4, 0xc8, 0xcc):
             h = (data[i + 5] << 8) | data[i + 6]
             w = (data[i + 7] << 8) | data[i + 8]
             return (w, h)
-        # Skip segment (length includes the length bytes themselves).
         seg = (data[i + 2] << 8) | data[i + 3]
         i += 2 + seg
     return None
@@ -114,6 +108,37 @@ def existing_ids():
     }
 
 
+def fetch_candidate(oid):
+    """Fetch object metadata and image in one worker call.
+
+    Returns (oid, title, artist, bytes) or None to reject.
+    """
+    try:
+        obj = json.loads(http_get(f'{API_BASE}/objects/{oid}', timeout=30))
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        return None
+    if not obj.get('isPublicDomain'):
+        return None
+    img_url = obj.get('primaryImageSmall') or obj.get('primaryImage')
+    if not img_url:
+        return None
+    try:
+        data = http_get(img_url, timeout=60)
+    except (urllib.error.URLError, TimeoutError):
+        return None
+    if len(data) < 10_000 or len(data) > MAX_BYTES:
+        return None
+    dims = jpeg_dims(data)
+    if dims and not orientation_ok(*dims):
+        return None
+    return (
+        oid,
+        (obj.get('title') or '').strip()[:50],
+        (obj.get('artistDisplayName') or '').strip()[:30],
+        data,
+    )
+
+
 def main():
     os.makedirs(IMAGE_DIR, exist_ok=True)
     have = existing_ids()
@@ -122,53 +147,40 @@ def main():
         print(f'already have {len(have)} images, nothing to do', flush=True)
         return 0
 
-    print(f'fetching Met object list (departments {DEPT_IDS})...', flush=True)
-    try:
-        all_ids = fetch_object_ids()
-    except (urllib.error.URLError, TimeoutError) as e:
-        print(f'ERROR: cannot reach Met API: {e}', flush=True)
-        return 1
+    print(f'fetching Met search list (depts {DEPT_IDS}, '
+          f'highlights={HIGHLIGHTS_ONLY})...', flush=True)
+    all_ids = [i for i in fetch_search_ids() if str(i) not in have]
     random.shuffle(all_ids)
-    print(f'{len(all_ids)} candidate objects', flush=True)
+    print(f'{len(all_ids)} candidates, fetching with {WORKERS} workers',
+          flush=True)
+
+    if not all_ids:
+        if HIGHLIGHTS_ONLY:
+            print('no highlights candidates — rerun with '
+                  'ARTFRAME_HIGHLIGHTS=0 for the full catalogue',
+                  flush=True)
+        return 1
 
     added = 0
-    scanned = 0
-    for oid in all_ids:
-        if added >= need:
-            break
-        scanned += 1
-        if scanned % 50 == 0:
-            print(f'  … scanned {scanned}, kept {added}', flush=True)
-        if str(oid) in have:
-            continue
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        futures = {pool.submit(fetch_candidate, oid): oid for oid in all_ids}
         try:
-            obj = fetch_object(oid)
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
-            continue
-        if not obj.get('isPublicDomain'):
-            continue
-        img_url = obj.get('primaryImageSmall') or obj.get('primaryImage')
-        if not img_url:
-            continue
-        try:
-            data = http_get(img_url, timeout=60)
-        except (urllib.error.URLError, TimeoutError):
-            continue
-        if len(data) < 10_000 or len(data) > MAX_BYTES:
-            continue
-        dims = jpeg_dims(data)
-        if dims and not orientation_ok(*dims):
-            continue
-
-        dest = os.path.join(IMAGE_DIR, f'{oid}.jpg')
-        with open(dest, 'wb') as f:
-            f.write(data)
-        title = (obj.get('title') or '').strip()[:50]
-        artist = (obj.get('artistDisplayName') or '').strip()[:30]
-        print(f'[{added + 1}/{need}] {oid} — {artist} / {title}',
-              flush=True)
-        added += 1
-        time.sleep(0.05)   # polite pacing
+            for fut in as_completed(futures):
+                if added >= need:
+                    break
+                result = fut.result()
+                if not result:
+                    continue
+                oid, title, artist, data = result
+                dest = os.path.join(IMAGE_DIR, f'{oid}.jpg')
+                with open(dest, 'wb') as f:
+                    f.write(data)
+                added += 1
+                print(f'[{added}/{need}] {oid} — {artist} / {title}',
+                      flush=True)
+        finally:
+            for f in futures:
+                f.cancel()
 
     print(f'done: added {added}, on disk {len(existing_ids())}', flush=True)
     return 0 if added else 2
