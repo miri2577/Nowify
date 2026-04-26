@@ -1,26 +1,27 @@
 #!/bin/sh
-# Display-loop for artframe. Waits until at least one JPG exists, then
-# hands off to fbi on tty1. fbi rescans the argv each cycle, so to pick
-# up newly-downloaded images we restart fbi periodically.
+# mpv-based slideshow direct to DRM/KMS framebuffer.
 set -eu
 
 DIR=/var/lib/artframe/images
-INTERVAL=${ARTFRAME_INTERVAL:-60}   # seconds per image
-RESTART_AFTER=${ARTFRAME_CYCLE:-1800}  # restart fbi every 30 min
+INTERVAL=${ARTFRAME_INTERVAL:-60}
 
-# Wait for first image to appear (fetcher runs in parallel on boot)
 i=0
 while [ ! -d "$DIR" ] || [ -z "$(ls -1 "$DIR"/*.jpg 2>/dev/null | head -1)" ]; do
   i=$((i + 1))
-  [ "$i" -gt 120 ] && exit 1   # give up after ~2 min
+  [ "$i" -gt 120 ] && exit 1
   sleep 1
 done
 
-while true; do
-  # shellcheck disable=SC2086
-  set -- $(ls -1 "$DIR"/*.jpg 2>/dev/null | shuf)
-  [ "$#" -eq 0 ] && sleep 5 && continue
-  timeout "$RESTART_AFTER" \
-    fbi -T 1 -a -t "$INTERVAL" -noverbose --readahead --cachemem 32 "$@" \
-    || true
-done
+# OSD positioning: bottom-centre, 60 px margin from edge.
+# Explicit --script= guarantees the label loads regardless of mpv's
+# packaging quirks around /etc/mpv/scripts/ auto-load.
+exec mpv \
+  --vo=drm \
+  --image-display-duration="$INTERVAL" \
+  --loop-playlist=inf \
+  --shuffle \
+  --no-input-default-bindings \
+  --no-input-cursor \
+  --quiet \
+  --script=/etc/mpv/scripts/artframe-info.lua \
+  "$DIR"/*.jpg

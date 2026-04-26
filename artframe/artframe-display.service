@@ -1,18 +1,12 @@
 [Unit]
-Description=Artframe: framebuffer slideshow
-After=multi-user.target systemd-user-sessions.service
-Conflicts=getty@tty1.service
+Description=Artframe: KMS slideshow
+After=multi-user.target
 
 [Service]
 Type=simple
 ExecStart=/opt/artframe/run-display.sh
 Restart=always
 RestartSec=5
-StandardInput=tty
-StandardOutput=tty
-TTYPath=/dev/tty1
-TTYReset=yes
-TTYVHangup=yes
 User=root
 
 [Install]
