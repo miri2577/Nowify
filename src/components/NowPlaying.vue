@@ -3,7 +3,7 @@
     <div
       v-if="player.playing"
       class="now-playing"
-      :class="getNowPlayingClass()"
+      :class="[getNowPlayingClass(), `now-playing--${orient}`]"
     >
       <div class="now-playing__cover">
         <img
@@ -29,7 +29,7 @@
         ref="artframeFrame"
       ></iframe>
     </div>
-    <div v-else class="now-playing" :class="getNowPlayingClass()">
+    <div v-else class="now-playing" :class="[getNowPlayingClass(), `now-playing--${orient}`]">
       <h1 class="now-playing__idle-heading">Waiting on a new song...</h1>
     </div>
   </div>
@@ -63,8 +63,10 @@ export default {
       refreshing: false,
       idleSince: null,
       idleTimer: null,
-      showArtwork: false,
-      shutdownTimer: null
+      showArtwork: true,            // Boot startet direkt im Artframe.
+      shutdownTimer: null,
+      orient: this.readOrient(),    // 'landscape' | 'portrait'
+      _storageListener: null
     }
   },
 
@@ -78,12 +80,26 @@ export default {
     this.setDataInterval()
     this.idleSince = Date.now()
     this.idleTimer = setInterval(() => this.checkIdle(), 5000)
+
+    // Direkt in Artframe starten, kein 1-Minuten-Warten.
+    this.enterArtwork()
+
+    // Auf Orientation-Aenderungen aus dem Artframe-iframe horchen.
+    this._storageListener = e => {
+      if (e.key === 'artframe.v1') {
+        this.orient = this.readOrient()
+      }
+    }
+    window.addEventListener('storage', this._storageListener)
   },
 
   beforeDestroy() {
     clearInterval(this.pollPlaying)
     clearInterval(this.idleTimer)
     clearTimeout(this.shutdownTimer)
+    if (this._storageListener) {
+      window.removeEventListener('storage', this._storageListener)
+    }
   },
 
   methods: {
@@ -184,6 +200,20 @@ export default {
         trackId: '',
         trackTitle: ''
       }
+    },
+
+    /**
+     * Orientation aus den Artframe-Settings (localStorage). Fallback:
+     * physische Viewport-Form.
+     */
+    readOrient() {
+      try {
+        const s = JSON.parse(localStorage.getItem('artframe.v1') || '{}')
+        if (s.orient === 'landscape' || s.orient === 'portrait') return s.orient
+      } catch (e) {
+        // ignore
+      }
+      return window.innerWidth >= window.innerHeight ? 'landscape' : 'portrait'
     },
 
     setDataInterval() {

@@ -79,12 +79,13 @@
     justify-content: center;
   }
 
-  /* Landscape (TV / 4K) → Cover links, Text rechts. */
-  @media (orientation: landscape) {
+  /* Landscape-Variante (vom Artframe vorgegeben oder Viewport-Default).
+     Cover links, Detail-Text rechts. */
+  &--landscape {
     flex-flow: row nowrap;
     align-items: stretch;
 
-    &__cover {
+    .now-playing__cover {
       flex: 0 0 50vw;
       width: 50vw;
       height: 100vh;
@@ -93,14 +94,14 @@
       justify-content: center;
     }
 
-    &__image {
+    .now-playing__image {
       width: 100%;
       height: 100%;
       max-height: none;
       object-fit: contain;
     }
 
-    &__details {
+    .now-playing__details {
       flex: 1 1 50vw;
       width: 50vw;
       padding: var(--spacing-xl);
