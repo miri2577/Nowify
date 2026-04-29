@@ -2,6 +2,12 @@
 node_modules
 /dist
 
+# Pi-Image-Builder Output (enthaelt gebackene WiFi/SSH-Credentials)
+*.img
+*.img.xz
+artframe/build-image/work-*/
+artframe/build-image/artframe-*.img
+
 # local env files
 .env
 .env.local
