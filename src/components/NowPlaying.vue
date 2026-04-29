@@ -20,16 +20,14 @@
         <h3 class="now-playing__release">Released on <span v-text="player.trackAlbum.release_date"></span> </h3>
       </div>
     </div>
-    <div v-else-if="showArtwork && currentArt" class="artwork">
-      <img
-        :src="currentArt.image"
-        :alt="currentArt.title"
-        class="artwork__image"
-      />
-      <div class="artwork__caption">
-        <h2 class="artwork__title" v-text="currentArt.title"></h2>
-        <p class="artwork__artist" v-text="currentArt.artist"></p>
-      </div>
+    <div v-else-if="showArtwork" class="artframe-host">
+      <iframe
+        src="/artframe/"
+        class="artframe-host__frame"
+        frameborder="0"
+        allow="autoplay"
+        ref="artframeFrame"
+      ></iframe>
     </div>
     <div v-else class="now-playing" :class="getNowPlayingClass()">
       <h1 class="now-playing__idle-heading">Waiting on a new song...</h1>
@@ -43,12 +41,8 @@ import * as Vibrant from 'node-vibrant'
 import props from '@/utils/props.js'
 
 const IDLE_ARTWORK_DELAY_MS = 1 * 60 * 1000
-const ARTWORK_ROTATE_MS = 60 * 1000
 const ARTWORK_IDLE_SHUTDOWN_MS = 60 * 60 * 1000
 const SHUTDOWN_ENDPOINT = 'http://127.0.0.1:8787/shutdown'
-const ARTWORK_FETCH_URL =
-  'https://api.artic.edu/api/v1/artworks'
-const ARTWORK_IIIF_BASE = 'https://www.artic.edu/iiif/2'
 
 export default {
   name: 'NowPlaying',
@@ -70,10 +64,6 @@ export default {
       idleSince: null,
       idleTimer: null,
       showArtwork: false,
-      artworks: [],
-      artworkIndex: 0,
-      currentArt: null,
-      artworkTimer: null,
       shutdownTimer: null
     }
   },
@@ -93,7 +83,6 @@ export default {
   beforeDestroy() {
     clearInterval(this.pollPlaying)
     clearInterval(this.idleTimer)
-    clearInterval(this.artworkTimer)
     clearTimeout(this.shutdownTimer)
   },
 
@@ -325,14 +314,13 @@ export default {
       }
     },
 
-    async enterArtwork() {
+    enterArtwork() {
       this.showArtwork = true
-      if (this.artworks.length === 0) {
-        await this.fetchArtworks()
-      }
-      this.nextArtwork()
-      clearInterval(this.artworkTimer)
-      this.artworkTimer = setInterval(() => this.nextArtwork(), ARTWORK_ROTATE_MS)
+      // Iframe (Artframe-Webui) zeigt Slideshow + reagiert auf TV-Remote.
+      // Fokus auf den iframe legen, damit FLIRC-Tasten ankommen.
+      this.$nextTick(() => {
+        this.$refs.artframeFrame?.contentWindow?.focus()
+      })
       clearTimeout(this.shutdownTimer)
       this.shutdownTimer = setTimeout(
         () => this.requestShutdown(),
@@ -342,9 +330,6 @@ export default {
 
     exitArtwork() {
       this.showArtwork = false
-      clearInterval(this.artworkTimer)
-      this.artworkTimer = null
-      this.currentArt = null
       clearTimeout(this.shutdownTimer)
       this.shutdownTimer = null
     },
@@ -361,49 +346,6 @@ export default {
       }
     },
 
-    async fetchArtworks() {
-      try {
-        const page = 1 + Math.floor(Math.random() * 200)
-        const url = `${ARTWORK_FETCH_URL}?page=${page}&limit=50&fields=id,title,artist_display,image_id,thumbnail`
-        const res = await fetch(url)
-        if (!res.ok) return
-        const json = await res.json()
-        const data = Array.isArray(json.data) ? json.data : []
-        const portraits = data.filter(a => {
-          if (!a.image_id || !a.thumbnail) return false
-          const w = a.thumbnail.width || 0
-          const h = a.thumbnail.height || 0
-          if (!w || !h) return false
-          return h >= w
-        })
-        // shuffle
-        for (let i = portraits.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1))
-          ;[portraits[i], portraits[j]] = [portraits[j], portraits[i]]
-        }
-        this.artworks = portraits.map(a => ({
-          image: `${ARTWORK_IIIF_BASE}/${a.image_id}/full/1200,/0/default.jpg`,
-          title: a.title || '',
-          artist: (a.artist_display || '').split('\n')[0]
-        }))
-        this.artworkIndex = 0
-      } catch (e) {
-        // ignore
-      }
-    },
-
-    async nextArtwork() {
-      if (this.artworks.length === 0) {
-        await this.fetchArtworks()
-      }
-      if (this.artworks.length === 0) return
-      this.currentArt = this.artworks[this.artworkIndex % this.artworks.length]
-      this.artworkIndex += 1
-      // refill when nearly exhausted
-      if (this.artworkIndex >= this.artworks.length - 2) {
-        this.fetchArtworks()
-      }
-    }
   },
 
   watch: {
@@ -436,57 +378,19 @@ export default {
 <style src="@/styles/components/now-playing.scss" lang="scss" scoped></style>
 
 <style lang="scss" scoped>
-.artwork {
+.artframe-host {
   position: fixed;
   inset: 0;
   background: #0a0a0a;
-  padding: 0;
   margin: 0;
+  padding: 0;
   overflow: hidden;
-  font-family: var(--font-body);
 
-  &__image {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
+  &__frame {
+    width: 100vw;
+    height: 100vh;
+    border: 0;
     display: block;
-  }
-
-  &__caption {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    padding: 18px 24px 22px;
-    text-align: center;
-    color: var(--color-text-primary);
-    text-shadow: 0 0.2rem 0.5rem rgba(0, 0, 0, 0.9),
-                 0 0 1.5rem rgba(0, 0, 0, 0.5);
-    background: linear-gradient(
-      to bottom,
-      rgba(0, 0, 0, 0) 0%,
-      rgba(0, 0, 0, 0.55) 60%,
-      rgba(0, 0, 0, 0.78) 100%
-    );
-  }
-
-  &__title {
-    margin: 0 0 8px;
-    font-size: 2.1em;
-    font-weight: var(--font-weight-heading);
-    font-style: italic;
-    letter-spacing: 0.02em;
-    line-height: 1.2;
-  }
-
-  &__artist {
-    margin: 0;
-    opacity: 0.85;
-    font-size: 1.4em;
-    font-style: normal;
-    letter-spacing: 0.02em;
   }
 }
 </style>
