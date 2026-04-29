@@ -66,7 +66,7 @@ export default {
       showArtwork: true,            // Boot startet direkt im Artframe.
       shutdownTimer: null,
       orient: this.readOrient(),    // 'landscape' | 'portrait'
-      _storageListener: null
+      storageListener: null
     }
   },
 
@@ -85,20 +85,20 @@ export default {
     this.enterArtwork()
 
     // Auf Orientation-Aenderungen aus dem Artframe-iframe horchen.
-    this._storageListener = e => {
+    this.storageListener = e => {
       if (e.key === 'artframe.v1') {
         this.orient = this.readOrient()
       }
     }
-    window.addEventListener('storage', this._storageListener)
+    window.addEventListener('storage', this.storageListener)
   },
 
   beforeDestroy() {
     clearInterval(this.pollPlaying)
     clearInterval(this.idleTimer)
     clearTimeout(this.shutdownTimer)
-    if (this._storageListener) {
-      window.removeEventListener('storage', this._storageListener)
+    if (this.storageListener) {
+      window.removeEventListener('storage', this.storageListener)
     }
   },
 
