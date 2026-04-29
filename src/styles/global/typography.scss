@@ -1,11 +1,13 @@
 /**
  * Global: Typography.
  * -----------------------------------------------------------------------------
+ * Hairline-Serif-Stil wie im Artframe — leichte Strichstärken,
+ * großzügiges Letter-Spacing für Versalien.
  */
 h1 {
   font-size: 2.5em;
   font-weight: var(--font-weight-heading);
-  letter-spacing: -1px;
+  letter-spacing: 0.02em;
   margin: 0 0 var(--spacing-m) 0;
   word-break: break-word;
 }
@@ -13,7 +15,7 @@ h1 {
 h2 {
   font-size: 2em;
   font-weight: var(--font-weight-body);
-  letter-spacing: -0.5px;
+  letter-spacing: 0.02em;
   margin: 0;
   word-break: break-word;
 }

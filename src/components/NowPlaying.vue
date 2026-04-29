@@ -439,10 +439,11 @@ export default {
 .artwork {
   position: fixed;
   inset: 0;
-  background: #000;
+  background: #0a0a0a;
   padding: 0;
   margin: 0;
   overflow: hidden;
+  font-family: var(--font-body);
 
   &__image {
     position: absolute;
@@ -460,19 +461,23 @@ export default {
     bottom: 0;
     padding: 18px 24px 22px;
     text-align: center;
-    color: #fff;
+    color: var(--color-text-primary);
+    text-shadow: 0 0.2rem 0.5rem rgba(0, 0, 0, 0.9),
+                 0 0 1.5rem rgba(0, 0, 0, 0.5);
     background: linear-gradient(
       to bottom,
       rgba(0, 0, 0, 0) 0%,
-      rgba(0, 0, 0, 0.72) 55%,
-      rgba(0, 0, 0, 0.88) 100%
+      rgba(0, 0, 0, 0.55) 60%,
+      rgba(0, 0, 0, 0.78) 100%
     );
   }
 
   &__title {
     margin: 0 0 8px;
     font-size: 2.1em;
-    font-weight: 600;
+    font-weight: var(--font-weight-heading);
+    font-style: italic;
+    letter-spacing: 0.02em;
     line-height: 1.2;
   }
 
@@ -480,6 +485,8 @@ export default {
     margin: 0;
     opacity: 0.85;
     font-size: 1.4em;
+    font-style: normal;
+    letter-spacing: 0.02em;
   }
 }
 </style>
