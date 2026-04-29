@@ -1,14 +1,18 @@
 // WikiArt-Wrapper — alle Endpoints, die ohne Auth zuverlässig laufen.
 //
-// CORS-Hinweis: aus dem Browser braucht es `--disable-web-security`.
-// Auf dem Pi setzt das Autostart-Skript dieses Flag.
+// CORS-Workaround: Beim Auslieferung via http(s) gehen alle Calls über
+// einen Netlify-Proxy (/wikiart/* → https://www.wikiart.org/*), damit
+// die Same-Origin-Policy keine fetch()-Calls blockt. Beim Aufruf via
+// file:// (offline-Test) wird direkt wikiart.org angesprochen.
 
-const BASE = 'https://www.wikiart.org';
+const BASE = location.protocol === 'file:'
+    ? 'https://www.wikiart.org'
+    : '/wikiart';
 const cache = new Map();
 
 async function fetchJSON(url) {
     if (cache.has(url)) return cache.get(url);
-    const r = await fetch(url, { mode: 'cors' });
+    const r = await fetch(url);
     if (!r.ok) throw new Error(`${r.status} ${url}`);
     const data = await r.json();
     cache.set(url, data);

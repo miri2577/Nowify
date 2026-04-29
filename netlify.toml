@@ -10,3 +10,11 @@
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
+
+# WikiArt-Proxy: damit der Artframe-iframe CORS-frei auf wikiart.org
+# zugreifen kann. Netlify forwarded den Request samt Query-Params.
+[[redirects]]
+  from = "/wikiart/*"
+  to = "https://www.wikiart.org/:splat"
+  status = 200
+  force = true
