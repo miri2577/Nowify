@@ -200,9 +200,10 @@ set -e
 export DEBIAN_FRONTEND=noninteractive
 export LANG=C
 apt-get update
-# Kiosk-Stack
+# Kiosk-Stack. chromium-browser wurde in Debian Trixie entfernt,
+# das aktuelle Paket heisst nur "chromium". Wir versuchen erst
+# chromium, fallen sonst auf chromium-browser zurueck (Bullseye).
 apt-get install -y --no-install-recommends \\
-    chromium-browser \\
     xserver-xorg \\
     xinit \\
     x11-xserver-utils \\
@@ -213,6 +214,15 @@ apt-get install -y --no-install-recommends \\
     ca-certificates \\
     wpasupplicant \\
     wireless-tools
+apt-get install -y --no-install-recommends chromium \\
+    || apt-get install -y --no-install-recommends chromium-browser
+
+# Welcher Chromium-Binary-Name? In Trixie /usr/bin/chromium,
+# in Bullseye /usr/bin/chromium-browser. Wir setzen einen Symlink
+# damit unser xinitrc immer 'chromium-browser' aufrufen kann.
+if [ ! -x /usr/bin/chromium-browser ] && [ -x /usr/bin/chromium ]; then
+    ln -sf /usr/bin/chromium /usr/bin/chromium-browser
+fi
 
 # Root-Passwort
 echo "root:${ROOT_PW}" | chpasswd
