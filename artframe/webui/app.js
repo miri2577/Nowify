@@ -442,6 +442,9 @@ function renderSettings() {
               saveFavorites([]);
               openFavDb().then(db => db.transaction(IDB_STORE, 'readwrite').objectStore(IDB_STORE).clear());
           } },
+        { label: 'Favoriten exportieren (ZIP)',
+          value: '⏎ Download',
+          toggle: () => exportFavorites() },
         // ─── Pi-Steuerung ──────────────────────────────────────────
         { label: 'Pi neu starten',     value: '⏎ ausführen', toggle: () => rebootPi() },
         { label: 'Pi herunterfahren',  value: '⏎ ausführen', toggle: () => shutdownPi() },
@@ -608,6 +611,91 @@ function flashOsd(text) {
     $osd.classList.remove('hidden');
     clearTimeout(state.slideshow?.hideTimer);
     state.slideshow.hideTimer = setTimeout(() => $osd.classList.add('hidden'), 2500);
+}
+
+// ────── Favoriten als ZIP exportieren ─────────────────────────────
+async function loadJSZip() {
+    if (window.JSZip) return window.JSZip;
+    return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
+        s.onload = () => resolve(window.JSZip);
+        s.onerror = reject;
+        document.head.appendChild(s);
+    });
+}
+
+function sanitizeFilename(name) {
+    return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 180);
+}
+
+async function exportFavorites() {
+    const favs = loadFavorites();
+    if (!favs.length) {
+        alert('Keine Favoriten zum Exportieren.');
+        return;
+    }
+
+    let JSZip;
+    try { JSZip = await loadJSZip(); }
+    catch (e) {
+        alert('JSZip-Library konnte nicht geladen werden (Internet?).');
+        return;
+    }
+
+    const zip = new JSZip();
+    const manifest = [];
+    let included = 0, missing = 0;
+
+    for (const f of favs) {
+        const blob = await idbGet(favKey(f)).catch(() => null);
+        if (!blob) { missing++; continue; }
+        const ext = blob.type === 'image/png' ? 'png' : 'jpg';
+        const safe = sanitizeFilename(
+            `${f.artistName || 'Unbekannt'} - ${f.title_en || f.title || 'ohne Titel'}` +
+            (f.yearAsString ? ` (${f.yearAsString})` : '')
+        );
+        // Mehrfache Werke mit gleichem Namen unterscheiden
+        let filename = `${safe}.${ext}`;
+        let dup = 1;
+        while (zip.file(filename)) {
+            filename = `${safe} (${++dup}).${ext}`;
+        }
+        zip.file(filename, blob);
+        manifest.push({
+            file: filename,
+            contentId: f.contentId,
+            title: f.title_en || f.title,
+            title_de: f.title_de,
+            artist: f.artistName,
+            year: f.yearAsString,
+            width: f.width,
+            height: f.height,
+            source: f.image,
+        });
+        included++;
+    }
+    zip.file('manifest.json', JSON.stringify({
+        exportedAt: new Date().toISOString(),
+        count: included,
+        works: manifest,
+    }, null, 2));
+
+    const out = await zip.generateAsync({
+        type: 'blob',
+        compression: 'STORE',   // JPEG ist eh schon komprimiert
+    });
+    const url = URL.createObjectURL(out);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `artframe-favoriten-${new Date().toISOString().slice(0, 10)}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+    alert(`${included} Favoriten exportiert${missing ? ` (${missing} ohne Bild)` : ''}.\n` +
+          `Datei landet bei Chromium-Kiosk im Downloads-Ordner.`);
 }
 
 async function slideshowFavorites() {
