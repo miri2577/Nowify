@@ -243,13 +243,16 @@ ssh-keygen -A
 usermod -s /bin/bash pi 2>/dev/null || true
 install -m 0644 -o pi -g pi /opt/artframe-kiosk/bash_profile /home/pi/.bash_profile
 
-# Auto-Login fuer pi auf tty1
+# Auto-Login fuer pi auf tty1. RasPiOS Trixie hat getty@tty1 per Default
+# disabled (weil normaler Desktop einen Display-Manager hat) — explizit
+# enablen, sonst startet auf tty1 nichts beim Boot.
 mkdir -p /etc/systemd/system/getty@tty1.service.d
 cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf <<EOF
 [Service]
 ExecStart=
 ExecStart=-/sbin/agetty --autologin pi --noclear %I \\\$TERM
 EOF
+systemctl enable getty@tty1.service
 
 # tty2 als Notfall-Konsole offen lassen (Strg+Alt+F2)
 systemctl enable getty@tty2.service
