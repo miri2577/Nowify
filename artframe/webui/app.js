@@ -6,6 +6,7 @@ import {
     paintingsBilingual,
     mostViewedPaintings,
     hdUrl,
+    corsSafeImageUrl,
     filterOrientation,
     artMovementsTree,
     artistsByMovement,
@@ -552,16 +553,25 @@ async function addCurrentToFavorites() {
     }
     flashOsd('★ Speichere …');
     // Bild herunterladen + als Blob in IDB ablegen (offline-faehig).
-    const url = hdUrl(it.image);
+    // Fetch laeuft ueber den Netlify-Bild-Proxy damit CORS nicht stoert.
+    // Fallback-Kette: !HD.jpg → !Large.jpg → original (manche Werke
+    // haben keine HD-Variante).
+    const candidates = [
+        hdUrl(it.image),
+        it.image,
+    ].filter((v, i, a) => v && a.indexOf(v) === i);
     let downloaded = false;
-    try {
-        const r = await fetch(url);
-        if (r.ok) {
-            const blob = await r.blob();
-            await idbPut(k, blob);
-            downloaded = true;
-        }
-    } catch (e) { /* CORS / Netz weg → trotzdem Metadaten speichern */ }
+    for (const url of candidates) {
+        try {
+            const r = await fetch(corsSafeImageUrl(url));
+            if (r.ok) {
+                const blob = await r.blob();
+                await idbPut(k, blob);
+                downloaded = true;
+                break;
+            }
+        } catch (e) { /* naechsten Kandidaten probieren */ }
+    }
 
     favs.push({
         contentId:    it.contentId || null,
@@ -570,7 +580,7 @@ async function addCurrentToFavorites() {
         title_de:     it.title_de || '',
         artistName:   it.artistName || '',
         yearAsString: it.yearAsString || '',
-        image:        url,
+        image:        it.image,        // Original-URL (auf wikiart-CDN)
         width:        it.width,
         height:       it.height,
         offline:      downloaded,
@@ -769,7 +779,10 @@ function renderSlide(idx) {
     if (!ss) return;
     const it = ss.items[idx];
     if (!it) return;
-    const url = hdUrl(it.image);
+    // Display-URL geht durch den Netlify-Bild-Proxy, damit der gleiche
+    // Cache-Eintrag spaeter auch fuer Favoriten-Downloads benutzt wird
+    // (CORS-frei, gleiche Origin).
+    const url = corsSafeImageUrl(hdUrl(it.image));
     const myToken = ++loadToken;
 
     const img = new Image();
@@ -792,7 +805,8 @@ function renderSlide(idx) {
 }
 
 // Laedt die naechsten 10 Bilder in den Browser-Cache, damit der
-// nachfolgende Slide ohne Netzlatenz erscheint.
+// nachfolgende Slide ohne Netzlatenz erscheint. Gleiche URL wie das
+// Display verwendet — keine Doppel-Downloads.
 const _preloaded = new Set();
 function preloadAhead(idx) {
     const ss = state.slideshow;
@@ -801,7 +815,7 @@ function preloadAhead(idx) {
     for (let k = 1; k <= 10; k++) {
         const next = ss.items[(idx + k) % N];
         if (!next) continue;
-        const u = hdUrl(next.image);
+        const u = corsSafeImageUrl(hdUrl(next.image));
         if (!u || _preloaded.has(u)) continue;
         _preloaded.add(u);
         const im = new Image();

@@ -228,6 +228,19 @@ export function hdUrl(image) {
     return image ? image.replace('!Large.jpg', '!HD.jpg') : '';
 }
 
+// Wandelt eine WikiArt-CDN-URL (https://uploads3.wikiart.org/...) in
+// einen same-origin Pfad (/wikiart-img/uploads3/...) um, damit fetch()
+// CORS-frei darauf zugreifen kann (siehe netlify.toml-Redirect).
+// Notwendig fuer das Herunterladen von Bildern fuer Favoriten-Offline.
+// Bei file:// (lokaler Test) bleibt die Original-URL.
+export function corsSafeImageUrl(url) {
+    if (!url) return url;
+    if (location.protocol === 'file:') return url;
+    const m = url.match(/^https?:\/\/(uploads\d*)\.wikiart\.org\/(.+)$/);
+    if (!m) return url;
+    return `/wikiart-img/${m[1]}/${m[2]}`;
+}
+
 export function filterOrientation(paintings, orientation) {
     return paintings.filter(p => {
         const w = +p.width, h = +p.height;

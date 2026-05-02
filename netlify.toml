@@ -18,3 +18,11 @@
   to = "https://www.wikiart.org/:splat"
   status = 200
   force = true
+
+# Bild-Proxy: CDN-Bilder von uploads*.wikiart.org CORS-frei runterladen
+# (fuer Favoriten-Speicherung als Blob in IndexedDB).
+[[redirects]]
+  from = "/wikiart-img/:bucket/*"
+  to = "https://:bucket.wikiart.org/:splat"
+  status = 200
+  force = true
