@@ -223,7 +223,14 @@ apt-get install -y --no-install-recommends chromium \\
 
 # AirPlay-Empfaenger (erfordert mDNS via avahi-daemon).
 # uxplay ist seit Debian Trixie im main-Repo verfuegbar.
-apt-get install -y --no-install-recommends uxplay avahi-daemon || true
+# WICHTIG: ohne --no-install-recommends, weil uxplay die GStreamer-
+# Plugins als Recommends fuehrt, ohne die es zur Laufzeit failt
+# (Required gstreamer plugin 'autodetect'/'videoparsersbad' not found).
+apt-get install -y uxplay avahi-daemon \\
+    gstreamer1.0-plugins-base gstreamer1.0-plugins-good \\
+    gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \\
+    gstreamer1.0-libav gstreamer1.0-gl gstreamer1.0-x \\
+    || true
 systemctl enable avahi-daemon 2>/dev/null || true
 
 # Welcher Chromium-Binary-Name? In Trixie /usr/bin/chromium,
