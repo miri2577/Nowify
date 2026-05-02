@@ -224,6 +224,11 @@ if [ ! -x /usr/bin/chromium-browser ] && [ -x /usr/bin/chromium ]; then
     ln -sf /usr/bin/chromium /usr/bin/chromium-browser
 fi
 
+# WICHTIG: xserver-xorg-pakete setzen oft graphical.target als Default,
+# was auf einem Display-Manager-losen System ewig haengt. Wir wollen
+# multi-user.target — Auto-Login auf tty1 startet dann xinit selbst.
+systemctl set-default multi-user.target
+
 # Root-Passwort
 echo "root:${ROOT_PW}" | chpasswd
 
