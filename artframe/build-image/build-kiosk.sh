@@ -151,6 +151,10 @@ unclutter -idle 1 -root &
 # Openbox als Fenster-Manager (minimal, ohne Decorations)
 openbox-session &
 
+# AirPlay-Receiver — laeuft im Hintergrund, oeffnet Fenster nur wenn
+# ein iPhone/iPad/Mac castet, ueberlagert dann Chromium.
+uxplay -n Artframe -fs -nh >/tmp/uxplay.log 2>&1 &
+
 # Chromium im Kiosk-Modus auf die Nowify-URL
 exec chromium-browser \\
     --kiosk \\
@@ -216,6 +220,11 @@ apt-get install -y --no-install-recommends \\
     wireless-tools
 apt-get install -y --no-install-recommends chromium \\
     || apt-get install -y --no-install-recommends chromium-browser
+
+# AirPlay-Empfaenger (erfordert mDNS via avahi-daemon).
+# uxplay ist seit Debian Trixie im main-Repo verfuegbar.
+apt-get install -y --no-install-recommends uxplay avahi-daemon || true
+systemctl enable avahi-daemon 2>/dev/null || true
 
 # Welcher Chromium-Binary-Name? In Trixie /usr/bin/chromium,
 # in Bullseye /usr/bin/chromium-browser. Wir setzen einen Symlink
