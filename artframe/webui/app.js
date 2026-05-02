@@ -68,7 +68,32 @@ const DEFAULTS = {
     sleepFrom: '23:00',
     sleepTo:   '07:00',
     lastNav:   null,
+    // Diashow
+    slideDurationSec: 12,    // wie lange jedes Bild stehen bleibt
+    osdHideAfterSec: 8,      // wie lange das OSD nach Bildwechsel sichtbar ist (0 = immer)
+    imageFit: 'contain',     // 'contain' = ganzes Bild sichtbar (mit Raendern) / 'cover' = Bildschirm fuellen (croppt)
+    // Passepartout (Rahmen-Farbe statt schwarz)
+    mattingEnabled: false,
+    mattingColor: '#0a0a0a',
 };
+
+// Auswahl-Optionen fuer das Einstellungs-Menue
+const SLIDE_DURATIONS  = [5, 10, 15, 20, 30, 60, 120, 300];
+const OSD_DURATIONS    = [0, 3, 5, 8, 15, 30];   // 0 = immer sichtbar
+const IMAGE_FITS       = ['contain', 'cover'];
+const MATTING_COLORS = [
+    { hex: '#0a0a0a', label: 'Schwarz'      },
+    { hex: '#2a2a2a', label: 'Anthrazit'    },
+    { hex: '#4a4a4a', label: 'Tiefgrau'     },
+    { hex: '#7d7468', label: 'Sandstein'    },
+    { hex: '#c4b899', label: 'Pergament'    },
+    { hex: '#e8e4dc', label: 'Off-White'    },
+    { hex: '#f5f1ea', label: 'Creme'        },
+    { hex: '#1a2238', label: 'Dunkelblau'   },
+    { hex: '#1f3329', label: 'Tannengrün'   },
+    { hex: '#3d1a1a', label: 'Bordeaux'     },
+];
+const TIMES = ['20:00','21:00','22:00','23:00','00:00','01:00','06:00','07:00','08:00','09:00'];
 function loadSettings() {
     try {
         const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
@@ -366,7 +391,28 @@ function showSettings() {
 }
 function renderSettings() {
     const s = loadSettings();
+    const mattingHex = s.mattingColor;
+    const mattingLabel = (MATTING_COLORS.find(c => c.hex === mattingHex) || {}).label || mattingHex;
     state.settingsItems = [
+        // ─── Diashow ───────────────────────────────────────────────
+        { label: 'Anzeigedauer pro Bild',
+          value: `${s.slideDurationSec}s`,
+          toggle: () => cycleList('slideDurationSec', SLIDE_DURATIONS) },
+        { label: 'OSD-Anzeigedauer',
+          value: s.osdHideAfterSec === 0 ? 'immer' : `${s.osdHideAfterSec}s`,
+          toggle: () => cycleList('osdHideAfterSec', OSD_DURATIONS) },
+        { label: 'Bildanpassung',
+          value: s.imageFit === 'cover' ? 'Bildschirm füllen (croppt)' : 'Ganzes Bild (mit Rändern)',
+          toggle: () => cycleList('imageFit', IMAGE_FITS) },
+        // ─── Passepartout ──────────────────────────────────────────
+        { label: 'Passepartout (Rahmen statt Schwarz)',
+          value: s.mattingEnabled ? 'an' : 'aus',
+          toggle: () => saveSettings({ mattingEnabled: !s.mattingEnabled }) },
+        { label: 'Passepartout-Farbe',
+          value: mattingLabel,
+          swatch: mattingHex,
+          toggle: () => cycleMattingColor() },
+        // ─── Auto-Boot / Sleep ────────────────────────────────────
         { label: 'Auto-Boot (letzte Auswahl resumen)',
           value: s.autoBoot ? 'an' : 'aus',
           toggle: () => saveSettings({ autoBoot: !s.autoBoot }) },
@@ -375,10 +421,11 @@ function renderSettings() {
           toggle: () => saveSettings({ sleepEnabled: !s.sleepEnabled }) },
         { label: 'Ruhe von',
           value: s.sleepFrom,
-          toggle: () => cycleTime('sleepFrom') },
+          toggle: () => cycleList('sleepFrom', TIMES) },
         { label: 'Ruhe bis',
           value: s.sleepTo,
-          toggle: () => cycleTime('sleepTo') },
+          toggle: () => cycleList('sleepTo', TIMES) },
+        // ─── Reset-Aktionen ────────────────────────────────────────
         { label: 'Letzte Auswahl löschen',
           value: s.lastNav ? s.lastNav.label || s.lastNav.kind : '—',
           toggle: () => saveSettings({ lastNav: null }) },
@@ -392,17 +439,31 @@ function renderSettings() {
             ${state.settingsItems.map((it, i) => `
                 <div class="menu-item ${i === state.cursor ? 'selected' : ''}">
                     ${escape(it.label)}
-                    <span class="count">${escape(it.value)}</span>
+                    <span class="count">
+                        ${it.swatch
+                            ? `<span class="swatch" style="background:${escape(it.swatch)}"></span>`
+                            : ''}
+                        ${escape(it.value)}
+                    </span>
                 </div>`).join('')}
         </div>`;
 }
-function cycleTime(field) {
+
+function cycleList(field, options) {
     const s = loadSettings();
-    const TIMES = ['20:00','21:00','22:00','23:00','00:00','01:00','06:00','07:00','08:00','09:00'];
     const cur = s[field];
-    const i = TIMES.indexOf(cur);
-    const next = TIMES[(i + 1) % TIMES.length];
+    const i = options.indexOf(cur);
+    const next = options[(i + 1) % options.length];
     saveSettings({ [field]: next });
+    applyVisualSettings();   // sofortige Wirkung wenn moeglich
+}
+
+function cycleMattingColor() {
+    const s = loadSettings();
+    const i = MATTING_COLORS.findIndex(c => c.hex === s.mattingColor);
+    const next = MATTING_COLORS[(i + 1) % MATTING_COLORS.length];
+    saveSettings({ mattingColor: next.hex });
+    applyVisualSettings();
 }
 
 // ────── Slideshow drivers ──────────────────────────────────────────
@@ -532,8 +593,20 @@ function startSlideshow(items) {
         </div>`;
     activeSlot = 'a';
     loadToken = 0;
+    applyVisualSettings();
     renderSlide(0);
     scheduleNext();
+}
+
+// Wendet Settings (imageFit, Passepartout-Farbe) auf Diashow-DOM an.
+// Wird beim Slideshow-Start UND bei jedem Settings-Cycle aufgerufen,
+// damit Aenderungen im Einstellungs-Menue sofort sichtbar werden.
+function applyVisualSettings() {
+    const s = loadSettings();
+    const bg = s.mattingEnabled ? s.mattingColor : '#000';
+    const fit = s.imageFit === 'cover' ? 'cover' : 'contain';
+    document.documentElement.style.setProperty('--matting-bg', bg);
+    document.documentElement.style.setProperty('--image-fit', fit);
 }
 
 function renderSlide(idx) {
@@ -575,19 +648,23 @@ function updateOsd(it) {
         <div class="slideshow-meta">${escape(it.yearAsString || '')}</div>`;
     $osd.classList.remove('hidden');
     clearTimeout(state.slideshow.hideTimer);
-    state.slideshow.hideTimer = setTimeout(
-        () => $osd.classList.add('hidden'), 8000);
+    const osdSec = loadSettings().osdHideAfterSec;
+    if (osdSec > 0) {
+        state.slideshow.hideTimer = setTimeout(
+            () => $osd.classList.add('hidden'), osdSec * 1000);
+    }
 }
 
 function scheduleNext() {
     const ss = state.slideshow;
     if (!ss || ss.paused) return;
     clearTimeout(ss.timer);
+    const slideMs = (loadSettings().slideDurationSec || 12) * 1000;
     ss.timer = setTimeout(() => {
         ss.index = (ss.index + 1) % ss.items.length;
         renderSlide(ss.index);
         scheduleNext();
-    }, 12000);
+    }, slideMs);
 }
 function nextSlide() {
     const ss = state.slideshow; if (!ss) return;
