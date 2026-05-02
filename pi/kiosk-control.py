@@ -34,6 +34,15 @@ class Handler(BaseHTTPRequestHandler):
                 subprocess.Popen(['/sbin/shutdown', '-h', 'now'])
             except FileNotFoundError:
                 subprocess.Popen(['shutdown', '-h', 'now'])
+        elif self.path == '/reboot':
+            self.send_response(200)
+            self._cors()
+            self.end_headers()
+            self.wfile.write(b'rebooting\n')
+            try:
+                subprocess.Popen(['/sbin/shutdown', '-r', 'now'])
+            except FileNotFoundError:
+                subprocess.Popen(['shutdown', '-r', 'now'])
         else:
             self.send_response(404)
             self._cors()

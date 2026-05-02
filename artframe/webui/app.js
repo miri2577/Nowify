@@ -25,6 +25,7 @@ const MAIN_MENU = [
     { label: 'Stile',           go: () => showStyleCategories() },
     { label: 'Themen',          go: () => showTags() },
     { label: 'Beliebt',         go: () => slideshowPopular() },
+    { label: 'Favoriten',       go: () => slideshowFavorites() },
     { label: 'Zufall',          go: () => slideshowRandomArtist() },
     { label: 'Einstellungen',   go: () => showSettings() },
 ];
@@ -136,13 +137,14 @@ function boot() {
 
 async function resumeLastNav(nav) {
     switch (nav.kind) {
-        case 'artist':   return slideshowFromArtist({ slug: nav.slug, name: nav.label });
-        case 'style':    return slideshowFromCategory('style', nav.slug, nav.label);
-        case 'genre':    return slideshowFromCategory('genre', nav.slug, nav.label);
-        case 'tag':      return slideshowFromTag({ slug: nav.slug, label: nav.label });
-        case 'popular':  return slideshowPopular();
-        case 'random':   return slideshowRandomArtist();
-        default:         showOrient();
+        case 'artist':    return slideshowFromArtist({ slug: nav.slug, name: nav.label });
+        case 'style':     return slideshowFromCategory('style', nav.slug, nav.label);
+        case 'genre':     return slideshowFromCategory('genre', nav.slug, nav.label);
+        case 'tag':       return slideshowFromTag({ slug: nav.slug, label: nav.label });
+        case 'popular':   return slideshowPopular();
+        case 'favorites': return slideshowFavorites();
+        case 'random':    return slideshowRandomArtist();
+        default:          showOrient();
     }
 }
 
@@ -432,6 +434,16 @@ function renderSettings() {
         { label: 'Format zurücksetzen',
           value: s.orient || '—',
           toggle: () => saveSettings({ orient: null }) },
+        { label: 'Favoriten',
+          value: `${loadFavorites().length} gespeichert`,
+          toggle: () => {
+              if (!confirm('Alle Favoriten löschen?')) return;
+              saveFavorites([]);
+              openFavDb().then(db => db.transaction(IDB_STORE, 'readwrite').objectStore(IDB_STORE).clear());
+          } },
+        // ─── Pi-Steuerung ──────────────────────────────────────────
+        { label: 'Pi neu starten',     value: '⏎ ausführen', toggle: () => rebootPi() },
+        { label: 'Pi herunterfahren',  value: '⏎ ausführen', toggle: () => shutdownPi() },
     ];
     $app.innerHTML = `
         <div class="menu">
@@ -464,6 +476,149 @@ function cycleMattingColor() {
     const next = MATTING_COLORS[(i + 1) % MATTING_COLORS.length];
     saveSettings({ mattingColor: next.hex });
     applyVisualSettings();
+}
+
+async function rebootPi() {
+    try { await fetch('http://127.0.0.1:8787/reboot', { method: 'POST', mode: 'no-cors' }); } catch {}
+}
+async function shutdownPi() {
+    try { await fetch('http://127.0.0.1:8787/shutdown', { method: 'POST', mode: 'no-cors' }); } catch {}
+}
+
+// ────── Favoriten — Metadata in localStorage, Bilder als Blob in IDB ─
+const FAV_KEY  = 'artframe.favs';
+const IDB_NAME = 'artframe-fav';
+const IDB_STORE = 'images';
+
+function loadFavorites() {
+    try { return JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); }
+    catch { return []; }
+}
+function saveFavorites(list) {
+    localStorage.setItem(FAV_KEY, JSON.stringify(list));
+}
+function favKey(item) {
+    // contentId ist die WikiArt-eindeutige ID. Falls die fehlt (Mehr-
+    // viewed-Liste hat sie manchmal nicht), nehmen wir Bild-URL.
+    return item.contentId || item.image;
+}
+
+function openFavDb() {
+    return new Promise((resolve, reject) => {
+        const r = indexedDB.open(IDB_NAME, 1);
+        r.onupgradeneeded = e => e.target.result.createObjectStore(IDB_STORE);
+        r.onsuccess = e => resolve(e.target.result);
+        r.onerror = () => reject(r.error);
+    });
+}
+async function idbPut(key, blob) {
+    const db = await openFavDb();
+    return new Promise((res, rej) => {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).put(blob, key);
+        tx.oncomplete = res;
+        tx.onerror = () => rej(tx.error);
+    });
+}
+async function idbGet(key) {
+    const db = await openFavDb();
+    return new Promise((res, rej) => {
+        const tx = db.transaction(IDB_STORE, 'readonly');
+        const req = tx.objectStore(IDB_STORE).get(key);
+        req.onsuccess = () => res(req.result || null);
+        req.onerror = () => rej(req.error);
+    });
+}
+async function idbDelete(key) {
+    const db = await openFavDb();
+    return new Promise((res, rej) => {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).delete(key);
+        tx.oncomplete = res;
+        tx.onerror = () => rej(tx.error);
+    });
+}
+
+async function addCurrentToFavorites() {
+    const ss = state.slideshow;
+    if (!ss) return;
+    const it = ss.items[ss.index];
+    if (!it) return;
+    const k = favKey(it);
+    const favs = loadFavorites();
+    if (favs.find(f => favKey(f) === k)) {
+        flashOsd('★ schon in Favoriten');
+        return;
+    }
+    flashOsd('★ Speichere …');
+    // Bild herunterladen + als Blob in IDB ablegen (offline-faehig).
+    const url = hdUrl(it.image);
+    let downloaded = false;
+    try {
+        const r = await fetch(url);
+        if (r.ok) {
+            const blob = await r.blob();
+            await idbPut(k, blob);
+            downloaded = true;
+        }
+    } catch (e) { /* CORS / Netz weg → trotzdem Metadaten speichern */ }
+
+    favs.push({
+        contentId:    it.contentId || null,
+        title:        it.title || '',
+        title_en:     it.title_en || '',
+        title_de:     it.title_de || '',
+        artistName:   it.artistName || '',
+        yearAsString: it.yearAsString || '',
+        image:        url,
+        width:        it.width,
+        height:       it.height,
+        offline:      downloaded,
+    });
+    saveFavorites(favs);
+    flashOsd(downloaded ? '★ Favorit gespeichert (offline)' : '★ Favorit gespeichert');
+}
+
+async function removeCurrentFromFavorites() {
+    const ss = state.slideshow;
+    if (!ss) return;
+    const it = ss.items[ss.index];
+    if (!it) return;
+    const k = favKey(it);
+    const favs = loadFavorites().filter(f => favKey(f) !== k);
+    saveFavorites(favs);
+    try { await idbDelete(k); } catch {}
+    flashOsd('☆ Favorit entfernt');
+}
+
+function flashOsd(text) {
+    const $osd = document.getElementById('osd');
+    if (!$osd) return;
+    $osd.innerHTML = `<div class="slideshow-title">${escape(text)}</div>`;
+    $osd.classList.remove('hidden');
+    clearTimeout(state.slideshow?.hideTimer);
+    state.slideshow.hideTimer = setTimeout(() => $osd.classList.add('hidden'), 2500);
+}
+
+async function slideshowFavorites() {
+    pushBC('menu');
+    showLoading('Favoriten werden geladen …');
+    const favs = loadFavorites();
+    if (!favs.length) return showError('Keine Favoriten gespeichert.\nLanger Druck auf OK in der Diashow legt eins an.');
+    // Offline-Bilder als Blob-URL einbinden
+    const items = await Promise.all(favs.map(async f => {
+        if (!f.offline) return { ...f };
+        try {
+            const blob = await idbGet(favKey(f));
+            if (blob) return { ...f, image: URL.createObjectURL(blob) };
+        } catch {}
+        return { ...f };  // Fallback Online-URL
+    }));
+    const filtered = filterOrientation(items, state.orientation);
+    if (!filtered.length) return showError('Keine Favoriten im aktuellen Format.');
+    shuffle(filtered);
+    saveLastNav({ kind: 'favorites' });
+    startSlideshow(filtered);
 }
 
 // ────── Slideshow drivers ──────────────────────────────────────────
@@ -628,11 +783,30 @@ function renderSlide(idx) {
         $cur?.classList.remove('visible');
         activeSlot = nextSlot;
         updateOsd(it);
+        preloadAhead(idx);
     };
     img.onerror = () => {
         if (myToken === loadToken) nextSlide();
     };
     img.src = url;
+}
+
+// Laedt die naechsten 10 Bilder in den Browser-Cache, damit der
+// nachfolgende Slide ohne Netzlatenz erscheint.
+const _preloaded = new Set();
+function preloadAhead(idx) {
+    const ss = state.slideshow;
+    if (!ss) return;
+    const N = ss.items.length;
+    for (let k = 1; k <= 10; k++) {
+        const next = ss.items[(idx + k) % N];
+        if (!next) continue;
+        const u = hdUrl(next.image);
+        if (!u || _preloaded.has(u)) continue;
+        _preloaded.add(u);
+        const im = new Image();
+        im.src = u;
+    }
 }
 
 function updateOsd(it) {
@@ -765,6 +939,28 @@ function shuffle(arr) {
     return arr;
 }
 
+// ────── Long-Press-Erkennung fuer Enter im Slideshow ────────────────
+// Kurzer Druck: OSD togglen. Langer Druck (>=800ms): Favorit anlegen.
+let _lpTimer = null;
+let _lpFired = false;
+function handleEnterKeyDown() {
+    if (_lpTimer || _lpFired) return;   // bereits am laufen / schon ausgeloest
+    _lpTimer = setTimeout(() => {
+        _lpFired = true;
+        _lpTimer = null;
+        addCurrentToFavorites();
+    }, 800);
+}
+document.addEventListener('keyup', e => {
+    if (e.key !== 'Enter') return;
+    if (_lpTimer) {
+        clearTimeout(_lpTimer);
+        _lpTimer = null;
+        if (state.view === 'slideshow') toggleOsd();   // war kurzer Druck
+    }
+    _lpFired = false;
+});
+
 // ────── Keyboard ────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
     const k = e.key;
@@ -834,7 +1030,9 @@ document.addEventListener('keydown', e => {
             if      (k === 'ArrowRight') nextSlide();
             else if (k === 'ArrowLeft')  prevSlide();
             else if (k === ' ')          togglePause();
-            else if (k === 'i' || k === 'Enter') toggleOsd();
+            else if (k === 'i')          toggleOsd();
+            else if (k === 'Enter')      handleEnterKeyDown();
+            else if (k === 'f')          removeCurrentFromFavorites();   // entfernen
             else if (k === 'Escape' || k === 'Backspace') exitSlideshow();
             return;
 
