@@ -4,13 +4,8 @@
 #          /api/track als File-basiertes Now-Playing-Relay implementiert
 #          und /wikiart, /wikiart-img als CORS-Proxies durchreicht.
 
-FROM node:20-bookworm AS builder
+FROM node:20-bookworm-slim AS builder
 WORKDIR /app
-
-# node-sass 4.14 (alt) braucht python3+make+g++ für native-build.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      python3 make g++ \
-    && rm -rf /var/lib/apt/lists/*
 
 COPY package.json yarn.lock ./
 RUN npm install --legacy-peer-deps --no-audit --no-fund
