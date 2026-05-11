@@ -1,0 +1,14 @@
+{
+  "name": "nowify-server",
+  "version": "1.0.0",
+  "description": "Express server replacing Netlify Functions + Redirects for Nowify.",
+  "type": "module",
+  "private": true,
+  "main": "index.mjs",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
