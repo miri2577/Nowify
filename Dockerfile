@@ -15,6 +15,9 @@ ARG VUE_APP_SP_CLIENT_ID=""
 ARG VUE_APP_SP_CLIENT_SECRET=""
 ENV VUE_APP_SP_CLIENT_ID=${VUE_APP_SP_CLIENT_ID}
 ENV VUE_APP_SP_CLIENT_SECRET=${VUE_APP_SP_CLIENT_SECRET}
+# Webpack 4 nutzt MD4-Hashes — OpenSSL 3 (Node 17+) lehnt das ab. Legacy
+# Provider aktivieren damit der vue-cli-service 4 baut.
+ENV NODE_OPTIONS=--openssl-legacy-provider
 RUN npm run build && cp -r artframe/webui dist/artframe
 
 
