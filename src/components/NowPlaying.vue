@@ -288,17 +288,26 @@ export default {
     },
 
     handleAlbumPalette(palette) {
-      let albumColours = Object.keys(palette)
-        .filter(item => (item === null ? null : item))
-        .map(colour => ({
-          text: palette[colour].getTitleTextColor(),
-          background: palette[colour].getHex()
+      // Bevorzugt dunkle Swatches → Hintergrund bleibt dezent, nicht "zu bunt".
+      // getTitleTextColor() garantiert kontrastreichen Text relativ zum
+      // gewählten background-Wert. Reihenfolge: DarkVibrant > DarkMuted >
+      // Vibrant > Muted > beliebiger > Fallback Schwarz/Weiß.
+      const order = ['DarkVibrant', 'DarkMuted', 'Vibrant', 'Muted', 'LightMuted', 'LightVibrant']
+      let chosen = null
+      for (const name of order) {
+        if (palette[name]) { chosen = palette[name]; break }
+      }
+
+      this.swatches = order
+        .filter(n => palette[n])
+        .map(n => ({
+          text: palette[n].getTitleTextColor(),
+          background: palette[n].getHex()
         }))
 
-      this.swatches = albumColours
-
-      this.colourPalette =
-        albumColours[Math.floor(Math.random() * albumColours.length)]
+      this.colourPalette = chosen
+        ? { text: chosen.getTitleTextColor(), background: chosen.getHex() }
+        : { text: '#ffffff', background: '#000000' }
 
       this.$nextTick(() => {
         this.setAppColours()
