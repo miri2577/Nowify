@@ -9,7 +9,13 @@
  *
  */
 .now-playing {
-  background-color: rgba(0, 0, 0, 1);
+  // Hintergrund nutzt die vom Cover extrahierte Vibrant-Palette
+  // (gesetzt per CSS-Variable in setAppColours). Fallback Schwarz für
+  // den ersten Render bevor das Cover analysiert wurde.
+  // Vorher war es hartcodiert auf Schwarz → bei schwarz-dominanten Covers
+  // (z.B. Fever Ray) wählte Vibrant manchmal Schwarz als getTitleTextColor
+  // = schwarz auf schwarz = unsichtbarer Text.
+  background-color: var(--colour-background-now-playing, rgba(0, 0, 0, 1));
   color: var(--color-text-primary);
   display: flex;
   flex-flow: column nowrap;
