@@ -249,21 +249,36 @@ export default {
         return
       }
 
-      if (this.playerResponse.item?.id === this.playerData.trackId) {
+      // Spotify gibt 200 manchmal ohne `item` zurück (z.B. Podcasts/
+      // Audiobooks die als `episode` kommen, oder kurze Übergangs-Polls
+      // zwischen Tracks). In dem Fall NICHT versuchen Felder zu lesen
+      // — sonst crasht .artists.map() und der Watcher stirbt mitten
+      // im Update, was die Anzeige in einen halben Zustand bringt.
+      const item = this.playerResponse.item
+      if (!item || !item.id || !item.artists || !item.album) {
+        return
+      }
+
+      // Same-Track-Optimierung: Update nur überspringen wenn der lokale
+      // State auch tatsächlich konsistent ist. Sonst (z.B. nach kurzem
+      // 204/Error-Glitch der playerData geleert hat) müssen wir wieder
+      // korrekt befüllen — sonst bleibt die Anzeige "leer aber playing".
+      const sameTrack = item.id === this.playerData.trackId
+      const displayInSync =
+        this.playerData.playing && this.playerData.trackTitle
+      if (sameTrack && displayInSync) {
         return
       }
 
       this.playerData = {
         playing: this.playerResponse.is_playing,
-        trackArtists: this.playerResponse.item.artists.map(
-          artist => artist.name
-        ),
-        trackTitle: this.playerResponse.item.name,
-        trackId: this.playerResponse.item.id,
+        trackArtists: item.artists.map(artist => artist.name),
+        trackTitle: item.name,
+        trackId: item.id,
         trackAlbum: {
-          title: this.playerResponse.item.album.name,
-          image: this.playerResponse.item.album.images[0].url,
-          release_date: this.playerResponse.item.album.release_date
+          title: item.album.name,
+          image: item.album.images?.[0]?.url || '',
+          release_date: item.album.release_date
         }
       }
     },
