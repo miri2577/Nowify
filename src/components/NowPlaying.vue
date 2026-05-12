@@ -40,7 +40,11 @@ import * as Vibrant from 'node-vibrant'
 
 import props from '@/utils/props.js'
 
-const IDLE_ARTWORK_DELAY_MS = 1 * 60 * 1000
+// Erst nach 3 min ohne aktive Spotify-Wiedergabe in den Artframe wechseln.
+// Vorher 60s — das war zu eng: kurze API-Hänger / Token-Refreshes /
+// Werbe-Slots in Free-Spotify konnten den Switch fälschlich triggern
+// obwohl Musik weiterlief.
+const IDLE_ARTWORK_DELAY_MS = 3 * 60 * 1000
 const ARTWORK_IDLE_SHUTDOWN_MS = 60 * 60 * 1000
 const SHUTDOWN_ENDPOINT = 'http://127.0.0.1:8787/shutdown'
 
