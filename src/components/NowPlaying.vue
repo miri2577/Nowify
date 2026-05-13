@@ -1,7 +1,25 @@
 <template>
   <div id="app">
+    <!-- Artframe-iframe IMMER im DOM (v-show statt v-if). Wenn Vue zwischen
+         Music-View und Artwork-View hin- und herwechselt, würde v-if das
+         iframe destroy/recreate machen — jeder Mount braucht 5-10 sek bis
+         WikiArt-Bilder erscheinen, dazwischen ist die Anzeige schwarz
+         ("Bild verschwindet dauernd"). Mit v-show bleibt das iframe
+         dauerhaft geladen + nur CSS visibility wird gewechselt. -->
     <div
-      v-if="player.playing"
+      v-show="!player.playing && showArtwork"
+      class="artframe-host"
+    >
+      <iframe
+        src="/artframe/"
+        class="artframe-host__frame"
+        frameborder="0"
+        allow="autoplay"
+        ref="artframeFrame"
+      ></iframe>
+    </div>
+    <div
+      v-show="player.playing"
       class="now-playing"
       :class="[getNowPlayingClass(), `now-playing--${orient}`]"
     >
@@ -20,16 +38,11 @@
         <h3 class="now-playing__release">Released on <span v-text="player.trackAlbum.release_date"></span> </h3>
       </div>
     </div>
-    <div v-else-if="showArtwork" class="artframe-host">
-      <iframe
-        src="/artframe/"
-        class="artframe-host__frame"
-        frameborder="0"
-        allow="autoplay"
-        ref="artframeFrame"
-      ></iframe>
-    </div>
-    <div v-else class="now-playing" :class="[getNowPlayingClass(), `now-playing--${orient}`]">
+    <div
+      v-show="!player.playing && !showArtwork"
+      class="now-playing"
+      :class="[getNowPlayingClass(), `now-playing--${orient}`]"
+    >
       <h1 class="now-playing__idle-heading">Waiting on a new song...</h1>
     </div>
   </div>
