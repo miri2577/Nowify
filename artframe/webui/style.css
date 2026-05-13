@@ -320,9 +320,7 @@ html, body {
     transform: scale(1.05);
 }
 
-/* ──── Bildschirm-Ruhe ──────────────────────────────────────────── */
-body.sleep { background: #000 !important; }
-body.sleep #app { opacity: 0; pointer-events: none; transition: opacity 1s ease; }
+/* Sleep-Mode entfernt — Display ist immer aktiv. */
 
 /* Scaling for 4K — pixel-density-aware base font */
 @media (min-width: 3000px) {

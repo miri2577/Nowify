@@ -66,9 +66,6 @@ const STORAGE_KEY = 'artframe.v1';
 const DEFAULTS = {
     orient: null,
     autoBoot: false,
-    sleepEnabled: true,
-    sleepFrom: '23:00',
-    sleepTo:   '07:00',
     lastNav:   null,
     // Diashow
     slideDurationSec: 12,    // wie lange jedes Bild stehen bleibt
@@ -95,7 +92,6 @@ const MATTING_COLORS = [
     { hex: '#1f3329', label: 'Tannengrün'   },
     { hex: '#3d1a1a', label: 'Bordeaux'     },
 ];
-const TIMES = ['20:00','21:00','22:00','23:00','00:00','01:00','06:00','07:00','08:00','09:00'];
 function loadSettings() {
     try {
         const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
@@ -133,7 +129,6 @@ function boot() {
     } else {
         showOrient();
     }
-    startSleepWatcher();
 }
 
 async function resumeLastNav(nav) {
@@ -415,19 +410,10 @@ function renderSettings() {
           value: mattingLabel,
           swatch: mattingHex,
           toggle: () => cycleMattingColor() },
-        // ─── Auto-Boot / Sleep ────────────────────────────────────
+        // ─── Auto-Boot ─────────────────────────────────────────────
         { label: 'Auto-Boot (letzte Auswahl resumen)',
           value: s.autoBoot ? 'an' : 'aus',
           toggle: () => saveSettings({ autoBoot: !s.autoBoot }) },
-        { label: 'Bildschirm-Ruhe',
-          value: s.sleepEnabled ? 'an' : 'aus',
-          toggle: () => saveSettings({ sleepEnabled: !s.sleepEnabled }) },
-        { label: 'Ruhe von',
-          value: s.sleepFrom,
-          toggle: () => cycleList('sleepFrom', TIMES) },
-        { label: 'Ruhe bis',
-          value: s.sleepTo,
-          toggle: () => cycleList('sleepTo', TIMES) },
         // ─── Reset-Aktionen ────────────────────────────────────────
         { label: 'Letzte Auswahl löschen',
           value: s.lastNav ? s.lastNav.label || s.lastNav.kind : '—',
@@ -968,28 +954,11 @@ function exitSlideshow() {
     goBack();
 }
 
-// ────── Sleep-Timer (Bildschirm-Ruhe in der Nacht) ─────────────────
-function startSleepWatcher() {
-    tickSleep();
-    setInterval(tickSleep, 30 * 1000);
-}
-function tickSleep() {
-    const s = loadSettings();
-    if (!s.sleepEnabled) {
-        document.body.classList.remove('sleep');
-        return;
-    }
-    const now = new Date();
-    const t  = now.getHours() * 60 + now.getMinutes();
-    const fr = parseHM(s.sleepFrom);
-    const to = parseHM(s.sleepTo);
-    const inSleep = fr < to ? (t >= fr && t < to) : (t >= fr || t < to);
-    document.body.classList.toggle('sleep', inSleep);
-}
-function parseHM(hm) {
-    const [h, m] = (hm || '00:00').split(':').map(n => +n || 0);
-    return h * 60 + m;
-}
+// (Sleep-Timer entfernt — der hat den Bildschirm zwischen 23-7 Uhr per
+//  body.sleep / opacity:0 ausgeblendet, war als Feature gedacht aber
+//  hat als Fehler gewirkt: "Bildschirm wird kurz nach Start schwarz".
+//  Wer Display-Power-Management will: per cron auf OS-Ebene mit
+//  vcgencmd display_power 0/1 oder HDMI CEC.)
 
 // ────── Misc ────────────────────────────────────────────────────────
 function pushBC(v) {
@@ -1068,14 +1037,6 @@ document.addEventListener('keydown', e => {
     const k = e.key;
     e.preventDefault?.();
 
-    // Tastendruck im Sleep-Modus weckt für die nächste Tick-Runde auf,
-    // indem wir die Klasse manuell entfernen. Wenn wir noch im Sleep-
-    // Fenster sind, kommt sie nach 30s wieder — passt für TV-Aufwachen.
-    if (document.body.classList.contains('sleep')) {
-        document.body.classList.remove('sleep');
-        return;
-    }
-
     switch (state.view) {
         case 'orient':
             if (k === 'ArrowLeft' || k === 'ArrowRight') {
@@ -1145,7 +1106,6 @@ document.addEventListener('keydown', e => {
             else if (k === 'Enter' || k === ' ' || k === 'ArrowRight' || k === 'ArrowLeft') {
                 state.settingsItems[state.cursor].toggle();
                 renderSettings();
-                tickSleep();
                 return;
             } else if (k === 'Escape' || k === 'Backspace') {
                 showMenu(); return;
